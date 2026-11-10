@@ -1,3 +1,83 @@
+YVL_GUARD = {}
+local ALLOWED_HOSTS = {
+ "raw.githubusercontent.com/georgeflowberry6767-cmd/6767",
+}
+local MIN_BYTES, MAX_BYTES = 900000, 1400000
+local function fail(reason)
+ pcall(function()
+  game:GetService("StarterGui"):SetCore("SendNotification",
+   { Title = "YVL", Text = "integrity check failed", Duration = 10 })
+ end)
+ warn("[YVL] guard: " .. tostring(reason))
+ YVL_GUARD.failed = reason
+ return false
+end
+function YVL_GUARD.selfIntact(fnList)
+ if not (debug and type(debug.info) == "function") then return true end
+ local mine = nil
+ pcall(function() mine = debug.info(YVL_GUARD.selfIntact, "s") end)
+ if type(mine) ~= "string" then return true end
+ for _, fn in ipairs(fnList or {}) do
+  if type(fn) == "function" then
+   local src = nil
+   pcall(function() src = debug.info(fn, "s") end)
+   if src == nil or src == "" then
+    return fail("a core function was replaced with a C closure")
+   end
+   if src ~= mine then
+    return fail("a core function now lives in a different chunk")
+   end
+  end
+ end
+ return true
+end
+function YVL_GUARD.hostOk()
+ local src = nil
+ pcall(function() src = (getgenv and getgenv().YVL_SOURCE_URL) or nil end)
+ if type(src) ~= "string" then
+  return fail("no source url recorded, not launched by our loader")
+ end
+ for _, host in ipairs(ALLOWED_HOSTS) do
+  if string.find(src, host, 1, true) then return true end
+ end
+ return fail("served from an unrecognised host: " .. tostring(src))
+end
+function YVL_GUARD.sizeOk()
+ local n = nil
+ pcall(function() n = (getgenv and getgenv().YVL_SOURCE_BYTES) or nil end)
+ if type(n) ~= "number" then return true end
+ if n < MIN_BYTES or n > MAX_BYTES then
+  return fail(("source size %d outside expected range"):format(n))
+ end
+ return true
+end
+function YVL_GUARD.toolingClean()
+ local hits = {}
+ for _, name in ipairs({
+  "saveinstance", "decompilesave", "dumpstring",
+  "lura_deobf", "luraph_unpack", "unluac", "luadec",
+ }) do
+  local present = false
+  pcall(function()
+   local g = getgenv and getgenv() or nil
+   present = g ~= nil and type(rawget(g, name)) ~= "nil"
+  end)
+  if present then hits[#hits + 1] = name end
+ end
+ if #hits > 0 then
+  return fail("dump tooling present: " .. table.concat(hits, ", "))
+ end
+ return true
+end
+function YVL_GUARD.run(coreFns)
+ local ok = true
+ if not YVL_GUARD.hostOk() then ok = false end
+ if not YVL_GUARD.sizeOk() then ok = false end
+ if not YVL_GUARD.toolingClean() then ok = false end
+ if not YVL_GUARD.selfIntact(coreFns) then ok = false end
+ YVL_GUARD.passed = ok
+ return ok
+end
 AR2_dmgWatched = 0
 if getgenv then
  local g = getgenv()
