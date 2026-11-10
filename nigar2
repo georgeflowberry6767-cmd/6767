@@ -533,7 +533,8 @@ AR2_CFG = {
  spinOn = false, spinSpeed = 20, spinTilt = false,
  antiAim = { hrp = false, look = false, mode = "Backwards", spinSpeed = 12,
  jitterDeg = 145, staticYaw = 180, pitch = "Off", pitchDeg = 89,
- pitchSpeed = 8, fpSuspend = true },
+ pitchSpeed = 8, fpSuspend = true,
+ orbit = false, orbitMode = "Spin", radius = 4, orbitSpeed = 3 },
  charm = false, charmMode = "Color", charmHue = 0, charmRainbow = false,
  charmGray = 50, globalCharm = false, charmEnemiesOnly = false,
  globalChams = false, globalChamsHue = 0,
@@ -1234,6 +1235,10 @@ function AR2_applyLoadedConfig()
  s(function() pcall(AR2_setPenPreview, AR2_CFG.weapon.penPreview) end)
  s(function() AR2_freeze.stop() end)
  s(function() AR2_visuals.apply() end)
+ s(function()
+ local sb = AR2_CFG.visuals and AR2_CFG.visuals.skybox
+ if type(sb) == "string" and sb ~= "" then AR2_applySkybox(sb) end
+ end)
  s(function() AR2_carMods.apply() end)
  s(function() if AR2_CFG.radar.on then AR2_radar.start() else AR2_radar.stop() end end)
  s(function() if AR2_CFG.speed.on then AR2_speed.start() else AR2_speed.stop() end end)
@@ -1369,13 +1374,10 @@ AR2_COSMETIC_SKIP = {
  fakeBag=true, bagName=true, bagHideReal=true, bagPart=true, bagPreset=true,
  bagScale=true, bagOffX=true, bagOffY=true, bagOffZ=true,
  bagYaw=true, bagPitch=true, bagRoll=true,
- removeShadows=true, removeTextures=true, removeLeaves=true, removeBushes=true,
  },
  weapon  = { skinOn=true, skinName=true, skinUnlockAll=true },
  cosmetic = { Hat=true, Top=true, Vest=true, Bottom=true, Belt=true,
  Accessory1=true, Accessory2=true, Hair=true, Face=true },
- visuals = { fullbright=true, nofog=true, setTime=true, brightness=true,
- time=true, skybox=true },
 }
 function AR2_stripCosmetics(cfg)
  if type(cfg) ~= "table" then return cfg end
@@ -5615,6 +5617,50 @@ function AR2_aaStep(dt)
  end
  end
  end
+ if c.orbit and not suspend then
+ local ch   = AR2_LocalPlayer and AR2_LocalPlayer.Character
+ local root = ch and ch:FindFirstChild("HumanoidRootPart")
+ local hum  = ch and ch:FindFirstChildOfClass("Humanoid")
+ if root and hum then
+ if AR2_aaCenter == nil then AR2_aaCenter = root.Position end
+ local md = hum.MoveDirection
+ if md.Magnitude > 0.01 then
+ AR2_aaCenter = AR2_aaCenter
+ + md.Unit * (hum.WalkSpeed or 16) * (dt or 1 / 60)
+ end
+ local radius = AR2_safeClamp(tonumber(c.radius) or 4, 0.5, 20)
+ local off
+ if c.orbitMode == "Jitter" then
+ local a = math.random() * math.pi * 2
+ local d = math.random() * radius
+ off = Vector3.new(math.cos(a) * d, 0, math.sin(a) * d)
+ else
+ AR2_aaOrbitAngle = ((AR2_aaOrbitAngle or 0)
+ + (dt or 1 / 60) * (tonumber(c.orbitSpeed) or 3) * math.pi * 2)
+ % (math.pi * 2)
+ off = Vector3.new(math.cos(AR2_aaOrbitAngle) * radius, 0,
+ math.sin(AR2_aaOrbitAngle) * radius)
+ end
+ pcall(function()
+ hum.AutoRotate = false
+ root.CFrame = CFrame.new(AR2_aaCenter + off) * CFrame.Angles(0, yaw, 0)
+ root.AssemblyLinearVelocity  = Vector3.zero
+ root.AssemblyAngularVelocity = Vector3.zero
+ end)
+ end
+ elseif AR2_aaCenter ~= nil then
+ local ch   = AR2_LocalPlayer and AR2_LocalPlayer.Character
+ local root = ch and ch:FindFirstChild("HumanoidRootPart")
+ if root then
+ pcall(function()
+ root.CFrame = CFrame.new(AR2_aaCenter) * (root.CFrame - root.Position)
+ root.AssemblyLinearVelocity  = Vector3.zero
+ root.AssemblyAngularVelocity = Vector3.zero
+ end)
+ end
+ AR2_aaCenter = nil
+ AR2_aaOrbitAngle = 0
+ end
  if c.look and not suspend then
  local spr
  pcall(function() spr = gc.LookDirectionSpring end)
@@ -8641,17 +8687,17 @@ function AR2_fitDressReport()
  :format(type(rawget(Wardrobe, "DressFromLoadout")) == "function"
  and "present" or "MISSING"))
  end
- if type(Loadouts) == "table" then
- local live = rawget(Loadouts, "Get")
+ if type(Wardrobe) == "table" then
+ local live = rawget(Wardrobe, "DressFromLoadout")
  if not AR2_fitLoadHook then
- add("3. Loadouts.Get hook: NEVER INSTALLED -- toggle Unlock Cosmetics off and on")
- elseif live == AR2_fitOrigGet then
- add("3. Loadouts.Get hook: LOST (library was replaced) -- toggle Unlock Cosmetics off and on")
+ add("3. dress hook: NEVER INSTALLED -- toggle Unlock Cosmetics off and on")
+ elseif live == AR2_fitOrigDress then
+ add("3. dress hook: LOST (library replaced) -- toggle Unlock Cosmetics off and on")
  else
- add("3. Loadouts.Get hook: live")
+ add("3. dress hook: live on Wardrobe.DressFromLoadout")
  end
  else
- add("3. Loadouts.Get hook: cannot check, Loadouts unreachable")
+ add("3. dress hook: cannot check, Wardrobe unreachable")
  end
  local worn, wornN = {}, 0
  for _, rec in pairs(AR2_fitWorn or {}) do
@@ -8688,6 +8734,21 @@ function AR2_fitDressReport()
  end
  end
  end
+ do
+ local lines, bad = {}, 0
+ for _, rec in pairs(AR2_fitWorn or {}) do
+ local r = AR2_fitCanWear(rec.name)
+ if not r.ok then bad = bad + 1 end
+ if #lines < 8 then
+ lines[#lines + 1] = ("   %-28s %s"):format(tostring(rec.name),
+ (r.ok and "OK -- " or "BLOCKED -- ") .. tostring(r.why))
+ end
+ end
+ if #lines > 0 then
+ add(("6a. Wearability (%d blocked):"):format(bad))
+ for _, l in ipairs(lines) do add(l) end
+ end
+ end
  local inst
  pcall(function()
  local gc = AR2_resolveGameCharacter()
@@ -8709,6 +8770,118 @@ function AR2_fitDressReport()
  print("[YVL] ---- dress report ----\n" .. out)
  if AR2_writefile then pcall(AR2_writefile, "YVL_dress_report.txt", out) end
  return out
+end
+function AR2_fitCanWear(itemName)
+ local out = { name = tostring(itemName) }
+ local ItemData
+ pcall(function()
+ ItemData = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+ .Configs.ItemData
+ end)
+ local data = type(ItemData) == "table" and ItemData[itemName] or nil
+ if type(data) ~= "table" then
+ out.ok, out.why = false, "no ItemData entry"
+ return out
+ end
+ out.real = data.RealName or data.DisplayName
+ out.slot = data.EquipSlot
+ out.is3D = data.Is3DClothing and true or false
+ out.clothingId = data.ClothingId
+ if (data.EquipSlot == "Top" or data.EquipSlot == "Bottom")
+ and not data.Is3DClothing then
+ local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
+ local inst = ch and (ch:FindFirstChildOfClass("Shirt")
+ or ch:FindFirstChildOfClass("Pants"))
+ if inst then
+ out.ok, out.why = true, "clothing texture (Shirt/Pants present)"
+ else
+ out.ok, out.why = false,
+ "MeshPart body -- needs ServerStorage.ClothingTextures, server only"
+ end
+ return out
+ end
+ local model
+ pcall(function()
+ local assets = AR2_ReplicatedStorage:FindFirstChild("Assets")
+ local items = assets and assets:FindFirstChild("Items")
+ model = items and items:FindFirstChild(out.real)
+ end)
+ if model then
+ out.ok, out.why = true, "model present in Assets.Items"
+ else
+ out.ok, out.why = false,
+ "model NOT in Assets.Items -- server-only, cannot dress client side"
+ end
+ return out
+end
+function AR2_fitTestDress()
+ local captured, conn = {}, nil
+ local Log = game:GetService("LogService")
+ pcall(function()
+ conn = Log.MessageOut:Connect(function(msg, mtype)
+ if mtype == Enum.MessageType.MessageWarning
+ or mtype == Enum.MessageType.MessageError then
+ captured[#captured + 1] = tostring(msg)
+ end
+ end)
+ end)
+ local steps = {}
+ local function note(s) steps[#steps + 1] = s end
+ local Wardrobe, Loadouts
+ pcall(function()
+ local fw = require(AR2_ReplicatedFirst:WaitForChild("Framework", 10))
+ Wardrobe = fw.Libraries and fw.Libraries.Wardrobe
+ Loadouts = fw.Libraries and fw.Libraries.Loadouts
+ end)
+ note(("Wardrobe=%s Loadouts=%s")
+ :format(Wardrobe and "ok" or "MISSING", Loadouts and "ok" or "MISSING"))
+ local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
+ note(("Character=%s  Equipment folder=%s  Shirt=%s  Pants=%s")
+ :format(ch and ch.Name or "none",
+ ch and ch:FindFirstChild("Equipment") and "present" or "MISSING",
+ ch and ch:FindFirstChildOfClass("Shirt") and "yes" or "no",
+ ch and ch:FindFirstChildOfClass("Pants") and "yes" or "no"))
+ local lo
+ pcall(function() lo = Loadouts and Loadouts:Get("Current") end)
+ note(("loadout=%s  Equipment=%s  Unloaded=%s")
+ :format(type(lo), type(lo) == "table" and type(rawget(lo, "Equipment")) or "-",
+ type(lo) == "table" and tostring(rawget(lo, "Unloaded")) or "-"))
+ local patched
+ pcall(function() patched = AR2_fitPatchLoadout(lo) end)
+ local pn = 0
+ if type(patched) == "table" and type(patched.Equipment) == "table" then
+ for _ in pairs(patched.Equipment) do pn = pn + 1 end
+ end
+ note(("patched loadout carries %d equipment entr%s")
+ :format(pn, pn == 1 and "y" or "ies"))
+ if Wardrobe and ch and type(patched) == "table" then
+ local ok, err = pcall(function()
+ Wardrobe:DressFromLoadout(ch, patched)
+ end)
+ note(("DressFromLoadout: %s"):format(ok and "returned without error"
+ or ("THREW " .. tostring(err))))
+ else
+ note("DressFromLoadout: NOT CALLED (missing one of the above)")
+ end
+ task.wait(0.3)
+ if conn then pcall(function() conn:Disconnect() end) end
+ local out = { "---- YVL dress test ----" }
+ for _, s in ipairs(steps) do out[#out + 1] = "  " .. s end
+ out[#out + 1] = ""
+ if #captured == 0 then
+ out[#out + 1] = "the game printed NO warnings -- it believes the dress succeeded"
+ else
+ out[#out + 1] = ("the game printed %d warning(s):"):format(#captured)
+ for i, m in ipairs(captured) do
+ if i > 14 then out[#out + 1] = "  ..." break end
+ out[#out + 1] = "  " .. m
+ end
+ end
+ local text = table.concat(out, "\n")
+ print(text)
+ pcall(function() setclipboard(text) end)
+ if AR2_writefile then pcall(AR2_writefile, "YVL_dress_test.txt", text) end
+ return text
 end
 function AR2_fitPatchLoadout(lo)
  if type(lo) ~= "table" then return lo end
@@ -9469,20 +9642,30 @@ function AR2_fitUnlockReal(on)
  end)
  if type(Loadouts) ~= "table" then return false, "Loadouts library unreachable" end
  if not AR2_fitLoadHook then
- AR2_fitOrigGet = rawget(Loadouts, "Get")
- if type(AR2_fitOrigGet) ~= "function" then return false, "Loadouts.Get missing" end
- local ok = pcall(function()
- Loadouts.Get = function(self, name, ...)
- local lo = AR2_fitOrigGet(self, name, ...)
- if AR2_CFG.misc.cosReal and name == "Current" then
- local okP, patched = pcall(AR2_fitPatchLoadout, lo)
- if okP and type(patched) == "table" then return patched end
+ local Wardrobe
+ pcall(function()
+ Wardrobe = require(AR2_ReplicatedFirst:WaitForChild("Framework", 30))
+ .Libraries.Wardrobe
+ end)
+ if type(Wardrobe) ~= "table" then
+ return false, "Wardrobe library unreachable"
  end
- return lo
+ AR2_fitOrigDress = rawget(Wardrobe, "DressFromLoadout")
+ if type(AR2_fitOrigDress) ~= "function" then
+ return false, "Wardrobe.DressFromLoadout missing"
+ end
+ local ok = pcall(function()
+ Wardrobe.DressFromLoadout = function(self, model, lo, ...)
+ if AR2_CFG.misc.cosReal then
+ local okP, patched = pcall(AR2_fitPatchLoadout, lo)
+ if okP and type(patched) == "table" then lo = patched end
+ end
+ return AR2_fitOrigDress(self, model, lo, ...)
  end
  end)
- if not ok then return false, "could not hook Loadouts.Get" end
+ if not ok then return false, "could not hook Wardrobe.DressFromLoadout" end
  AR2_fitLoadHook = true
+ AR2_fitHookWhat = "Wardrobe.DressFromLoadout"
  end
  if not on then
  pcall(AR2_fitUnhookSend)
@@ -9590,7 +9773,43 @@ function AR2_paintLocal(itemId, skinId)
  end
  local now = ""
  pcall(function() now = tostring(it.SkinId) end)
+ if now == skinId and type(AR2_skinWanted) == "table" then
+ AR2_skinWanted[itemId] = skinId
+ end
  return now == skinId, now
+end
+AR2_skinWanted = AR2_skinWanted or {}
+AR2_skinReapplies = 0
+function AR2_skinReapplyAll()
+ if type(AR2_skinWanted) ~= "table" then return 0 end
+ local n = 0
+ for itemId, skinId in pairs(AR2_skinWanted) do
+ local it = AR2_skinFindItem(itemId)
+ if it then
+ local cur
+ pcall(function() cur = tostring(it.SkinId) end)
+ if cur ~= skinId then
+ local ok = AR2_paintLocal(itemId, skinId)
+ if ok then n = n + 1 end
+ end
+ end
+ end
+ if n > 0 then AR2_skinReapplies = AR2_skinReapplies + n end
+ return n
+end
+do
+ task.spawn(function()
+ while true do
+ task.wait(1)
+ if next(AR2_skinWanted) ~= nil then pcall(AR2_skinReapplyAll) end
+ end
+ end)
+ pcall(function()
+ AR2_LocalPlayer.CharacterAdded:Connect(function()
+ task.delay(2, function() pcall(AR2_skinReapplyAll) end)
+ task.delay(5, function() pcall(AR2_skinReapplyAll) end)
+ end)
+ end)
 end
 function AR2_skinUnlockAll(on)
  AR2_CFG.weapon.skinUnlockAll = on and true or false
@@ -12201,11 +12420,12 @@ function AR2_doInventoryFire(part)
  end
  AR2_lastPathBlocker = nil
  local saved, spoofed = nil, false
+ local fireItem = wd
  pcall(function()
  if pc and pc.Character then
  saved = pc.Character.EquippedItem
- if saved ~= wi then
- pc.Character.EquippedItem = wi
+ if saved ~= fireItem then
+ pc.Character.EquippedItem = fireItem
  spoofed = true
  end
  end
@@ -12214,10 +12434,13 @@ function AR2_doInventoryFire(part)
  if spoofed then
  pcall(function()
  local net = AR2_resolveNetTable()
- local id  = (type(wi) == "table" and (wi.Id or wi.ID or wi.Guid)) or wi
+ local id  = AR2_weaponIdOf(fireItem)
+ or (type(fireItem) == "table"
+ and (fireItem.Id or fireItem.ID or fireItem.Guid))
  if net and id then
  net:Send("Character Equip Item", id)
  sentEquip = true
+ AR2_rageEquipId = tostring(id)
  end
  end)
  end
@@ -12247,7 +12470,9 @@ function AR2_doInventoryFire(part)
  if sentEquip then
  pcall(function()
  local net = AR2_resolveNetTable()
- local id  = (type(wi) == "table" and (wi.Id or wi.ID or wi.Guid)) or wi
+ local id  = AR2_weaponIdOf(fireItem)
+ or (type(fireItem) == "table"
+ and (fireItem.Id or fireItem.ID or fireItem.Guid))
  if net and id then net:Send("Character Unequip Item", id) end
  end)
  end
@@ -22790,38 +23015,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  mxSection:AddButton({Name="Force Reset -- Snap To Ground",Callback=function()
  AR2_resetFallState()
  end})
- local mxAdvSection = movementTab:AddSection({Name="Movement (Advanced)"})
- addSlider(mxAdvSection,"Max Drift Before Giving Up",AR2_CFG.misc,"flySmoothMaxDrift",20,2000,20)
- addToggle(mxAdvSection,"Force Sit (kills walk anim, Sit REPLICATES)",AR2_CFG.misc,"noclipSit",function(v)
- pcall(AR2_noclipSitStates, v and AR2_CFG.misc.noclip and true or false)
- local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
- local h = ch and ch:FindFirstChildOfClass("Humanoid")
- if h and not v then pcall(function() h.Sit = false end) end
- AR2_notify(v and "sitting -- parks the state machine, but Sit REPLICATES:"
- .. " other players see you seated"
- or "PlatformStand only -- nothing extra replicates", 7)
- end)
- addToggle(mxAdvSection,"Freefall Hold (no anchor)",AR2_CFG.misc,"fallHold",function(v)
- AR2_fallHoldSet(v)
- end)
- addSlider(mxAdvSection,"Hop Distance",AR2_CFG.misc,"fallHopDist",5,300,5)
- addSlider(mxAdvSection,"Anchor Hold (s)",AR2_CFG.misc,"fallHopHold",0.1,3,0.1)
- mxAdvSection:AddButton({Name="Anchor Hop",Callback=function()
- AR2_anchorHop()
- end})
- addSlider(mxAdvSection,"Blink Max Range",AR2_CFG.misc,"blinkMax",10,400,10)
- addSlider(mxAdvSection,"  Stop Short By (studs)",AR2_CFG.misc,"blinkStandoff",0,20,1)
- addSlider(mxAdvSection,"  Dwell Before Fire (s)",AR2_CFG.misc,"blinkDwell",0.03,1,0.01)
- addSlider(mxAdvSection,"  Hold At Target (s)",AR2_CFG.misc,"blinkHold",0.05,2,0.05)
- addToggle(mxAdvSection,"  Return After",AR2_CFG.misc,"blinkReturn")
- mxAdvSection:AddButton({Name="Blink To Nearest + Fire Window",Callback=function()
- AR2_blinkShot()
- end,})
- local tpDashSection = movementTab:AddSection({Name="TP Dash"})
- addToggle(tpDashSection,"Enabled",AR2_CFG.misc,"tpDash",function(v) if v then AR2_startTpDash() else AR2_stopTpDash() end end)
- addSlider(tpDashSection,"Distance",AR2_CFG.misc,"tpDashStuds",5,200,function(v) AR2_CFG.misc.tpDashStuds=v end)
- addSlider(tpDashSection,"Interval (s)",AR2_CFG.misc,"tpDashInterval",0.1,5,0.1,function(v) AR2_CFG.misc.tpDashInterval=v end)
- addSlider(tpDashSection,"Vertical Offset",AR2_CFG.misc,"tpDashVert",0,5,0.1,function(v) AR2_CFG.misc.tpDashVert=v end)
  local playerTPSection = movementTab:AddSection({Name="Player TP"})
  local function AR2_playerNames()
  local names = {"None"}
@@ -22940,6 +23133,17 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  addSlider(aaSection,"Pitch Degrees",AR2_CFG.misc.antiAim,"pitchDeg",1,89)
  addSlider(aaSection,"Pitch Speed",AR2_CFG.misc.antiAim,"pitchSpeed",1,20)
  addToggle(aaSection,"Suspend In First Person",AR2_CFG.misc.antiAim,"fpSuspend")
+ addToggle(aaSection,"Orbit (moves your hitbox)",AR2_CFG.misc.antiAim,"orbit",function(v)
+ if v then
+ Notif.new({Title="YVL",Duration=9,
+ Content="Orbit moves the root instead of just turning it. Yaw alone "
+ .. "only changes which way you face -- it never moved your hitbox, "
+ .. "which is why anti-aim felt dead."})
+ end
+ end)
+ addDropdown(aaSection,"  Orbit Mode",{"Spin","Jitter"},AR2_CFG.misc.antiAim,"orbitMode")
+ addSlider(aaSection,"  Orbit Radius",AR2_CFG.misc.antiAim,"radius",0.5,20,0.5)
+ addSlider(aaSection,"  Orbit Speed",AR2_CFG.misc.antiAim,"orbitSpeed",0.5,20,0.5)
  local stunSection = movementTab:AddSection({Name="Stun & Ragdoll"})
  addToggle(stunSection,"Anti Ragdoll / Stun",AR2_CFG.misc,"antiRagdoll",function(v) AR2_setAntiRagdoll(v) end,"antiRagdoll")
  addToggle(stunSection,"Anti Fall Stun",AR2_CFG.misc,"antiFallStun",function(v) AR2_setAntiFallStun(v) end)
@@ -23234,27 +23438,14 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  addSlider(carTuningSection,"Vehicle Noclip Speed",AR2_CFG.car,"noclipSpeed",10,1000)
  addSlider(carTuningSection,"Vehicle Noclip Eject Delay (s)",AR2_CFG.car,"noclipEjectDelay",0,2,0.1)
  local carFlySection = vehiclesTab:AddSection({Name="Car Fly"})
+ carFlySection:AddLabel("Anchored fly for the car you are sitting in.")
  addToggle(carFlySection,"Enabled",AR2_CFG.car,"fly",function(v)
- local ok = AR2_carFlySetEnabled(v)
- if v and not ok then
- Notif.new({Title="YVL",Content="Car Fly needs you seated in a vehicle",Duration=3})
- end
+ AR2_CFG.car.flyMode = "Fly"
+ AR2_setCarFly(v)
  end)
- addDropdown(carFlySection,"Mode",{"Fly","Ground Follow"},AR2_CFG.car,"flyMode",function(v)
- AR2_notify(v == "Ground Follow"
- and "ground follow -- through walls at ground level, Space/Ctrl still lift"
- or "free flight", 5)
+ addSlider(carFlySection,"Speed (cap 200)",AR2_CFG.car,"flySpeed",10,200,function(v)
+ AR2_CFG.car.flySpeed = AR2_safeClamp(v, 10, 200)
  end)
- addSlider(carFlySection,"  Ride Height (ground follow)",AR2_CFG.car,"groundRide",0,20,0.5)
- addSlider(carFlySection,"Speed (cap 200)",AR2_CFG.car,"flySpeed",10,200,function(v) AR2_CFG.car.flySpeed = AR2_safeClamp(v, 10, 200) end)
- carFlySection:AddLabel("Fly the car you are sitting in.")
- addToggle(carFlySection,"Zoom Out While Flying",AR2_CFG.car,"flyFOV")
- addSlider(carFlySection,"Fly FOV",AR2_CFG.car,"flyFOVVal",70,120,1)
- local carDashSection = vehiclesTab:AddSection({Name="Vehicle TP Dash",Position="right"})
- addToggle(carDashSection,"Vehicle TP Dash",AR2_CFG.car,"tpDash",function(v) if v then AR2_startCarDash() else AR2_stopCarDash() end end)
- addSlider(carDashSection,"Distance",AR2_CFG.car,"tpDashStuds",5,300,function(v) AR2_CFG.car.tpDashStuds=v end)
- addSlider(carDashSection,"Interval (s)",AR2_CFG.car,"tpDashInterval",0.1,5,0.1,function(v) AR2_CFG.car.tpDashInterval=v end)
- addSlider(carDashSection,"Vertical Offset",AR2_CFG.car,"tpDashVert",0,5,0.1,function(v) AR2_CFG.car.tpDashVert=v end)
  local carTPSection = vehiclesTab:AddSection({Name="Vehicle Noclip TP",Position="right"})
  carTPDropdown = carTPSection:AddLabel("Target"):AddDropdown({
  Default = (AR2_CFG.tp.target == "-") and "None" or AR2_CFG.tp.target,
@@ -28621,6 +28812,13 @@ end
  local ok,why = AR2_fitSetRespawnKeep(v)
  Notif.new({Title="YVL",Content=tostring(why),Duration=3})
  end)
+ cosSection:AddButton({Name="Test Dress (reads the game's own error)",Callback=function()
+ task.spawn(function()
+ local ok, rep = pcall(AR2_fitTestDress)
+ Notif.new({Title="YVL",Duration=25,
+ Content = ok and tostring(rep) or ("test failed: " .. tostring(rep))})
+ end)
+ end})
  cosSection:AddButton({Name="Why Is Dress Not Working",Callback=function()
  local okR, rep = pcall(AR2_fitDressReport)
  Notif.new({Title="YVL",Duration=18,
@@ -28909,12 +29107,12 @@ end
  nadeSection:AddButton({Name="Why Is Throw Aim Not Working",Callback=function()
  pcall(AR2_nadeWhyNot)
  end})
- local nadeEspSection = weaponsTab:AddSection({Name="Grenade ESP",Position="right"})
+ local nadeEspSection = espTab:AddSection({Name="Grenade ESP",Position="right"})
  nadeEspSection:AddLabel("Shows live grenades and their fuse timers.")
  addToggle(nadeEspSection,"Enabled",AR2_CFG.nade,"esp",function(v)
  AR2_nadeEspSet(v)
  end)
- local eventEspSection = worldTab:AddSection({Name="Random Event ESP"})
+ local eventEspSection = espTab:AddSection({Name="Random Event ESP",Position="right"})
  eventEspSection:AddLabel("Shows random events on screen and radar.")
  addToggle(eventEspSection,"Enabled",AR2_CFG.visuals,"eventEsp",function(v)
  if not v then AR2_eventEspClear() end
@@ -29035,47 +29233,6 @@ end
  pcall(AR2_resetConfig)
  AR2_notify("config reset",4)
  end})
- local moreSection = worldTab:AddSection({Name="Server Flags (All)"})
- moreSection:AddLabel("Extra options.")
- AR2_CFG.gflags = AR2_CFG.gflags or {}
- local G_BOOL = {
- "DataLoadingBlocked", "DebugIsland", "DryingMode", "HardcoreMode",
- "MKCarLot", "NoobMode", "QuickPlay", "SpawnAtExitPosition",
- "TestChatLock", "VehicleForceSpawn", "ZombiePhysicsSleepingBlocked",
- "ZombiesFreecamEnable", "ZombiesSkipDistanceCheck",
- }
- for _, nm in ipairs(G_BOOL) do
- if AR2_CFG.gflags[nm] == nil then AR2_CFG.gflags[nm] = false end
- addToggle(moreSection, nm, AR2_CFG.gflags, nm, function(v)
- local ok, why = AR2_globalFlag(nm, v, true)
- AR2_notify(nm .. ": " .. tostring(why), 3)
- end)
- end
- local G_NUM = {
- { "CombatRadius", 0, 2000, 50, 600 },
- { "CombatTimer", 0, 600, 10, 300 },
- { "FallDamageMax", 0, 1000, 10, 88 },
- { "FlinchMaxDistance", 0, 200, 5, 15 },
- { "GroupMemberLimit", 1, 50, 1, 5 },
- }
- for _, e in ipairs(G_NUM) do
- local nm, lo, hi, step, def = e[1], e[2], e[3], e[4], e[5]
- if AR2_CFG.gflags[nm] == nil then AR2_CFG.gflags[nm] = def end
- addSlider(moreSection, nm, AR2_CFG.gflags, nm, lo, hi, step, function(v)
- AR2_globalSet(nm, v)
- end)
- end
- AR2_gateSection = worldTab:AddSection({Name="Silent Footsteps",Position="right"})
- AR2_gateSection:AddLabel("Server-side checks the hub watches for.")
- AR2_CFG.perks = AR2_CFG.perks or {}
- addToggle(AR2_gateSection,"Silent Footsteps",AR2_CFG.misc,"silentSteps",function(v)
- for _, pn in ipairs({ "Padded Soles", "EventNinja" }) do
- AR2_CFG.perks[pn] = v
- pcall(AR2_perkSet, pn, v)
- end
- AR2_notify(v and "footsteps silenced -- log spam is expected"
- or "footsteps restored", 5)
- end)
  local popSection = settingsTab:AddSection({Name="Pop-out Panels"})
  addToggle(popSection,"Character Panel",AR2_CFG.ui,"charPanel",function(v)
  AR2_toggleCharPanel(v)
@@ -29492,6 +29649,38 @@ end)
 task.spawn(function()
  task.wait(3)
  pcall(AR2_mapWatchStart)
+end)
+task.spawn(function()
+ local deadline = os.clock() + 30
+ local brick, hook = false, false
+ while os.clock() < deadline and not (brick and hook) do
+ if not brick and AR2_CFG.misc.brickShield ~= false then
+ local ok = pcall(AR2_brickShieldSet, true)
+ if ok and AR2_brickInstalled then
+ brick = true
+ print("[YVL] brick shield: " .. tostring(AR2_brickWhy))
+ end
+ elseif AR2_CFG.misc.brickShield == false then
+ brick = true
+ end
+ if not hook and AR2_CFG.misc.netGuard ~= false then
+ local ok = pcall(AR2_installNetHook)
+ if ok and AR2_netHookInstalled then
+ hook = true
+ print("[YVL] net hook: " .. tostring(AR2_netHookWhy))
+ end
+ elseif AR2_CFG.misc.netGuard == false then
+ hook = true
+ end
+ if brick and hook then break end
+ task.wait(1)
+ end
+ if not brick then
+ warn("[YVL] brick shield NOT installed: " .. tostring(AR2_brickWhy))
+ end
+ if not hook then
+ warn("[YVL] net hook NOT installed: " .. tostring(AR2_netHookWhy))
+ end
 end)
 task.spawn(function()
  local deadline = os.clock() + 20
