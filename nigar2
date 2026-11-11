@@ -478,6 +478,9 @@ AR2_CFG = {
  flySmoothMaxDrift = 180, moveMode = "Off",
  spawnSpam = false, spawnSpamRate = 30, spawnSpamWhen = "Always",
  blinkMax = 120, blinkStandoff = 12, blinkDwell = 0.12,
+ windowShot = false, windowRange = 250, windowFov = 0,
+ windowStandoff = 10, windowDwell = 0.09, windowHold = 0.04,
+ windowGap = 0.06, windowRescan = 0.2, windowHead = true,
  blinkHold = 0.35, blinkReturn = true,
  ghostAbsoluteY = false, ghostFloorY = -3,
  ghostFreecam = false,
@@ -23015,6 +23018,27 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  mxSection:AddButton({Name="Force Reset -- Snap To Ground",Callback=function()
  AR2_resetFallState()
  end})
+ local windowSection = movementTab:AddSection({Name="Window Shot"})
+ windowSection:AddLabel("Fly under the map, then toggle on: locks the nearest "
+ .. "target, blinks on, fires, snaps back under -- repeats until they die, "
+ .. "then next. LOUD: you flicker onto people, strongest behavioural-AC "
+ .. "pattern there is.")
+ addToggle(windowSection,"Enabled",AR2_CFG.misc,"windowShot",function(v)
+ AR2_windowSet(v)
+ if v then
+ Notif.new({Title="YVL",Duration=9,
+ Content="Window Shot on. Needs a seeded gun (fire once from inventory "
+ .. "first) and you under the map. Legal-path reporting forced off while "
+ .. "this runs so the server sees the blinks."})
+ end
+ end)
+ addSlider(windowSection,"Target Range",AR2_CFG.misc,"windowRange",20,1000,10)
+ addSlider(windowSection,"FOV (0 = off)",AR2_CFG.misc,"windowFov",0,180,5)
+ addSlider(windowSection,"Standoff",AR2_CFG.misc,"windowStandoff",0,25,1)
+ addSlider(windowSection,"Dwell (report window)",AR2_CFG.misc,"windowDwell",0.03,0.5,0.01)
+ addSlider(windowSection,"Hold After Fire",AR2_CFG.misc,"windowHold",0,0.5,0.01)
+ addSlider(windowSection,"Gap Between Shots",AR2_CFG.misc,"windowGap",0,1,0.01)
+ addToggle(windowSection,"Aim Head",AR2_CFG.misc,"windowHead")
  local playerTPSection = movementTab:AddSection({Name="Player TP"})
  local function AR2_playerNames()
  local names = {"None"}
@@ -25316,6 +25340,109 @@ function AR2_blinkShot()
  AR2_blinkBusy = false
  end)
 end
+AR2_windowBusy   = false
+AR2_windowShots  = 0
+AR2_windowKills  = 0
+AR2_windowSmoothWas = nil
+local function AR2_windowAlive(root)
+ if typeof(root) ~= "Instance" or root.Parent == nil then return false, nil end
+ local h = root.Parent:FindFirstChildOfClass("Humanoid")
+ if not h or h.Health <= 0 then return false, nil end
+ return true, h
+end
+function AR2_windowPick()
+ local me = AR2_tpRoot()
+ local from = me and me.Position
+ local cam = AR2_Workspace.CurrentCamera
+ if not from then return nil end
+ local range = AR2_safeClamp(tonumber(AR2_CFG.misc.windowRange) or 250, 20, 1000)
+ local fov   = tonumber(AR2_CFG.misc.windowFov) or 0
+ local best, bestC, bestD = nil, nil, math.huge
+ for _, pl in ipairs(AR2_Players:GetPlayers()) do
+ if pl ~= AR2_LocalPlayer then
+ local c = pl.Character
+ local r = c and c:FindFirstChild("HumanoidRootPart")
+ local h = c and c:FindFirstChildOfClass("Humanoid")
+ if r and h and h.Health > 0 then
+ local d = (r.Position - from).Magnitude
+ local ok = d <= range and d < bestD
+ if ok and fov > 0 and cam then
+ local to = (r.Position - cam.CFrame.Position)
+ if to.Magnitude > 0.01 then
+ local ang = math.deg(math.acos(
+ math.clamp(cam.CFrame.LookVector:Dot(to.Unit), -1, 1)))
+ if ang > fov then ok = false end
+ end
+ end
+ if ok then best, bestC, bestD = r, c, d end
+ end
+ end
+ end
+ return best, bestC, bestD
+end
+local function AR2_windowDrive(r, dest, seconds)
+ local t0 = os.clock()
+ while (os.clock() - t0) < seconds and AR2_CFG.misc.windowShot do
+ pcall(function()
+ r.CFrame = CFrame.new(dest) * (r.CFrame - r.CFrame.Position)
+ end)
+ AR2_RunService.Heartbeat:Wait()
+ end
+end
+function AR2_windowFireAt(root, char)
+ local r = AR2_tpRoot()
+ if not r or typeof(root) ~= "Instance" or root.Parent == nil then return false end
+ local home = r.CFrame             
+ local standoff = AR2_safeClamp(tonumber(AR2_CFG.misc.windowStandoff) or 10, 0, 25)
+ local dir = r.Position - root.Position
+ dir = Vector3.new(dir.X, 0, dir.Z)
+ if dir.Magnitude < 0.01 then dir = Vector3.new(1, 0, 0) end
+ local dest = root.Position + dir.Unit * standoff + Vector3.new(0, 1, 0)
+ AR2_windowDrive(r, dest, AR2_safeClamp(tonumber(AR2_CFG.misc.windowDwell) or 0.09, 0.03, 0.5))
+ local part = nil
+ if AR2_CFG.misc.windowHead ~= false and char then part = char:FindFirstChild("Head") end
+ part = part or root
+ pcall(function() AR2_doInventoryFire(part) end)
+ AR2_windowShots = (AR2_windowShots or 0) + 1
+ AR2_windowDrive(r, dest, AR2_safeClamp(tonumber(AR2_CFG.misc.windowHold) or 0.04, 0.0, 0.5))
+ pcall(function() r.CFrame = home end)   
+ return true
+end
+function AR2_windowLoop()
+ if AR2_windowBusy then return end
+ AR2_windowBusy = true
+ AR2_windowSmoothWas = AR2_CFG.misc.flySmooth
+ AR2_CFG.misc.flySmooth = false            
+ pcall(AR2_reportClampReset)
+ task.spawn(function()
+ while AR2_CFG.misc.windowShot do
+ local root, char = AR2_windowPick()
+ if not root then
+ task.wait(AR2_safeClamp(tonumber(AR2_CFG.misc.windowRescan) or 0.2, 0.05, 2))
+ else
+ local range = AR2_safeClamp(tonumber(AR2_CFG.misc.windowRange) or 250, 20, 1000)
+ while AR2_CFG.misc.windowShot do
+ local alive = select(1, AR2_windowAlive(root))
+ if not alive then AR2_windowKills = (AR2_windowKills or 0) + 1 break end
+ local me = AR2_tpRoot()
+ if me and (me.Position - root.Position).Magnitude > range + 40 then break end
+ pcall(AR2_windowFireAt, root, char)
+ task.wait(AR2_safeClamp(tonumber(AR2_CFG.misc.windowGap) or 0.06, 0.0, 1))
+ end
+ end
+ end
+ if AR2_windowSmoothWas ~= nil then
+ AR2_CFG.misc.flySmooth = AR2_windowSmoothWas
+ AR2_windowSmoothWas = nil
+ pcall(AR2_reportClampReset)
+ end
+ AR2_windowBusy = false
+ end)
+end
+function AR2_windowSet(on)
+ AR2_CFG.misc.windowShot = on and true or false
+ if on then AR2_windowLoop() end
+end
 AR2_GLOBALS       = AR2_GLOBALS       or nil
 AR2_globBaseMod   = AR2_globBaseMod   or nil
 AR2_globBaseGrav  = AR2_globBaseGrav  or nil
@@ -25531,31 +25658,37 @@ function AR2_meleeStrikeOnce()
  end
  end
  AR2_equipHoldUntil = os.clock() + 1.5
- local NET = AR2_networkLib()
- local send = AR2_meleeOrigSend or (type(NET) == "table" and rawget(NET, "Send"))
- if type(NET) ~= "table" or type(send) ~= "function" then
- AR2_meleeLastErr = "no Network:Send"
+ local combo = 1
+ pcall(function()
+ local inner = AR2_getEquippedInner()
+ local ci = inner and (rawget(inner, "ComboIndex") or inner.ComboIndex)
+ if type(ci) == "number" and ci >= 1 then combo = ci end
+ end)
+ local st  = AR2_Workspace:GetServerTimeNow()
+ local ray = Ray.new(handPos, aim.Unit * AR2_meleeReach())
+ local okSwing = AR2_pkSend("Melee Swing", "MeleeSwing", {
+ AttackId   = st,
+ WeaponId   = id,
+ ComboIndex = combo,
+ })
+ if not okSwing then
+ AR2_meleeLastErr = "swing encode/send failed: " .. tostring(AR2_pkLastErr)
  return false
  end
- local hp = best.Position
- local ok = pcall(function()
- local st = AR2_Workspace:GetServerTimeNow()
- send(NET, "Melee Swing", st, id, 1)
  task.delay(AR2_MELEE_SWING_LAG, function()
- if typeof(best) == "Instance" and best.Parent ~= nil then
- pcall(function()
- send(NET, "Melee Hit Register",
- id, st,
- Ray.new(handPos, aim.Unit * AR2_MELEE_REACH),
- best,
- hp * st * best.Size)
- AR2_meleeLastErr = "sent raw"
+ if typeof(best) ~= "Instance" or best.Parent == nil then return end
+ local okHit = AR2_pkSend("Melee Hit Register", "MeleeHit", {
+ WeaponId     = id,
+ AttackId     = st,
+ RayOrigin    = ray.Origin,
+ RayDirection = ray.Direction,
+ Position     = best.Position,
+ }, best)
+ AR2_meleeLastErr = okHit and "sent encoded MeleeHit"
+ or ("hit send failed: " .. tostring(AR2_pkLastErr))
  end)
- end
- end)
- end)
- if ok then AR2_strikeSent = AR2_strikeSent + 1 end
- return ok
+ AR2_strikeSent = AR2_strikeSent + 1
+ return true
 end
 AR2_pkMod, AR2_pkFails, AR2_pkSends = nil, 0, 0
 AR2_pkLastErr = "not used yet"
