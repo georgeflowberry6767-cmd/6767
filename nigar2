@@ -499,7 +499,7 @@ AR2_CFG = {
  bodyHide = false, bodyHideHead = false, bodyHideAcc = true,
  bodyHideMode = "Transparency", bodyHideDepth = 60, bodyHideAllJoints = false,
  camDrag = false, camDragOffset = 8, camDragForceEquip = true, camDragSnapBack = true,
- freecamNative = true, netGuard = true, netGuardBlock = false,
+ freecamNative = false, netGuard = false, netGuardBlock = false,
  hairColor = 1, skinColor = 1,
  infJump = false, noclip = false, noclipSpeed = 90, carNoclip = false,
  noJumpCooldown = false, jumpPower = 50, jumpPowerOn = false,
@@ -561,12 +561,12 @@ AR2_CFG = {
  lootFitOnly = true, lootRate = 12, lootGround = true,
  nativeOwn = false, brickShield = true,
  blkTeleport = false, blkUnload = false, blkUnloadExit = false,
- blkVehOwn = true, blkVehPush = true, blkReloadCancel = true, watchThrowRej = false,
- hitFeed = false, kickShield = true,
+ blkVehOwn = false, blkVehPush = false, blkReloadCancel = false, watchThrowRej = false,
+ hitFeed = false,
  mouseSpoof = true, mouseEase = 0.25,
- detGuard = true, detGuardRemove = true, killDetectors = true, stripHardcore = false, realInvis = false,
+ detGuard = false, detGuardRemove = true, killDetectors = true, stripHardcore = false, realInvis = false,
  invisFull = false,
- speedTarget = 29, speedTopOn = false, jumpPower = 32, jumpFree = 3,
+ speedTarget = 29,
  lootAuto = false, lootAutoGround = false,
  selfBacktrack = { enabled = false, color = Color3.fromRGB(255,255,255), transparency = 0.4, material = Enum.Material.ForceField, delay = 0.3 },
  invisFixV2 = false,
@@ -580,7 +580,7 @@ AR2_CFG = {
  forceSight = false, sightName = "None", sightWeld = true, sightScale = 1,
  sightX = 0, sightY = 0, sightZ = 0, sightAuto = true,
  sightPitch = 0, sightYaw = 0, sightRoll = 0,
- antiRagdoll = false, adsWhileSprint = false, forceSprint = false, omniSprint = false, sprintAnyDir = true, omniSpeed = 20,
+ antiRagdoll = false, adsWhileSprint = false, forceSprint = false, omniSprint = false, omniSpeed = 20,
  resumeHold = 0.6, autoResume = true, cosLearn = false,
   enemyMorphNear = 18, enemyMorphFar = 900, enemyMorphNoHide = false,
  guiUnlock = false, dressPreviews = true, guiDressOnClick = true,
@@ -1240,8 +1240,45 @@ function AR2_saveConfig(name)
  AR2_refreshConfigList()
  return true
 end
+function AR2_cfgSanitize()
+ local m = AR2_CFG and AR2_CFG.misc
+ if type(m) ~= "table" then return end
+ m.blkVehOwn, m.blkVehPush, m.blkReloadCancel = false, false, false
+ m.blkTeleport, m.blkUnload, m.blkUnloadExit = false, false, false
+ m.jumpFree, m.speedTarget, m.speedTopOn = nil, nil, nil
+ m.sprintAnyDir = nil
+ if tonumber(m.jumpPower) then
+ m.jumpPower = AR2_safeClamp(tonumber(m.jumpPower), 5, 50)
+ end
+ if tonumber(m.omniSpeed) then
+ m.omniSpeed = AR2_safeClamp(tonumber(m.omniSpeed), 18, 22)
+ end
+ m.netGuard = false
+ m.freecamNative = false
+ m.detGuard = false
+end
+function AR2_restoreGameMovement()
+ pcall(function()
+ local c = AR2_charCfg()
+ if type(c) ~= "table" then return end
+ local j = rawget(c, "Jump")
+ if type(j) == "table" and type(AR2_jumpOrig) == "table" then
+ for k, v in pairs(AR2_jumpOrig) do
+ if v ~= nil then pcall(function() j[k] = v end) end
+ end
+ end
+ local ms = rawget(c, "MoveSpeeds")
+ if type(ms) == "table" and type(AR2_moveOrig) == "table" then
+ for k, v in pairs(AR2_moveOrig) do
+ if type(v) == "number" then pcall(function() ms[k] = v end) end
+ end
+ end
+ end)
+end
 function AR2_applyLoadedConfig()
  local errs = {}
+ pcall(AR2_cfgSanitize)
+ pcall(AR2_restoreGameMovement)
  local function s(fn)
   local ok, e = pcall(fn)
   if not ok then errs[#errs + 1] = tostring(e) end
@@ -1282,7 +1319,6 @@ function AR2_applyLoadedConfig()
  s(function() AR2_toggleDistanceZoom(AR2_CFG.misc.distZoomActive) end)
  s(function() AR2_tracersEnabled = AR2_CFG.misc.tracers end)
  s(function() if AR2_CFG.misc.brickShield ~= false then AR2_brickShieldSet(true) end end)
- s(function() if AR2_CFG.misc.kickShield ~= false then pcall(AR2_installKickShield) end end)
  s(function() if AR2_CFG.misc.noclip then AR2_startNoclip() else AR2_stopNoclip() end end)
  s(function() if AR2_CFG.misc.infJump then AR2_startInfJump() else AR2_stopInfJump() end end)
  s(function() AR2_setSpin(AR2_CFG.misc.spinOn) end)
@@ -1311,7 +1347,11 @@ function AR2_applyLoadedConfig()
  s(function() AR2_toggleHideGun(AR2_CFG.misc.hideGun) end)
  s(function() AR2_setWallbangAll(AR2_CFG.weapon.wallbang) end)
  s(function() AR2_shotLogToggle(AR2_CFG.misc.shotLogger) end)
- s(function() pcall(AR2_installResolverHook) end)
+ s(function()
+ if AR2_CFG.weapon.wallbang or AR2_CFG.weapon.wallbangTag then
+ pcall(AR2_installResolverHook)
+ end
+ end)
  s(function() pcall(AR2_installDamageListener) end)
  s(function()
   if not AR2_dmgListenerOn and not AR2_dmgRetryRunning then
@@ -1337,7 +1377,7 @@ function AR2_applyLoadedConfig()
  s(function() AR2_setInstantRespawn(AR2_CFG.tp.instantRespawn) end)
  s(function() if AR2_CFG.misc.nativeOwn then AR2_ownUnlockSet(true) end end)
  s(function() AR2_mouseSpoofSet(AR2_CFG.misc and AR2_CFG.misc.mouseSpoof) end)
- s(function() AR2_guardSet(AR2_CFG.misc == nil or AR2_CFG.misc.detGuard ~= false) end)
+ s(function() if AR2_CFG.misc and AR2_CFG.misc.detGuard then AR2_guardSet(true) end end)
  s(function() AR2_invStripSet(AR2_CFG.misc and AR2_CFG.misc.stripHardcore) end)
  s(function()
  if AR2_CFG.misc and AR2_CFG.misc.killDetectors then AR2_detectorKill(true) end
@@ -1355,7 +1395,6 @@ function AR2_applyLoadedConfig()
  end
  end)
  s(function() pcall(AR2_skinKeepStart) end)
- s(function() if AR2_CFG.misc.speedTopOn then AR2_speedTopSet(true) end end)
  s(function() pcall(AR2_uiMouseStart) end)
  s(function() AR2_handlerSet("Drop Vehicle Ownership", AR2_CFG.misc.blkVehOwn) end)
  s(function() AR2_handlerSet("Vehicle Push Impulse", AR2_CFG.misc.blkVehPush) end)
@@ -1390,7 +1429,9 @@ function AR2_applyLoadedConfig()
  s(function() AR2_setNoFallDamage(AR2_CFG.misc.noFallDamage) end)
  s(function() AR2_setKillEsp(AR2_CFG.misc.killEsp) end)
  s(function() pcall(AR2_installAlwaysHead) end)
- s(function() pcall(AR2_installNetHook) end)
+ s(function()
+ if AR2_CFG.misc.containerPersist then pcall(AR2_installNetHook) end
+ end)
  s(function() pcall(AR2_ibRestoreFireConfig) end)
  s(function() pcall(AR2_ibCleanEquipped) end)
  s(function() AR2_setNameSpoof(AR2_CFG.misc.killfeedSpoof) end)
@@ -7774,36 +7815,21 @@ AR2_stForced        = nil
 AR2_stHookInstalled = false
 function AR2_installServerTimeHook()
  if AR2_stHookInstalled then return true end
- if type(getnamecallmethod) ~= "function" then return false end
- if type(AR2_hookfunction) == "function" then
- local okFn = pcall(function()
- local orig
- orig = AR2_hookfunction(AR2_Workspace.GetServerTimeNow,
- function(self, ...)
- if AR2_stForced ~= nil and self == AR2_Workspace
- and (AR2_rageShotActive or not checkcaller()) then
- return AR2_stForced
+ if type(hookmetamethod) ~= "function" or type(getnamecallmethod) ~= "function" then
+ return false
  end
- return orig(self, ...)
- end)
- AR2_stHookInstalled = orig ~= nil
- AR2_stHookHow = "hookfunction on GetServerTimeNow"
- end)
- if okFn and AR2_stHookInstalled then return true end
- end
- if type(hookmetamethod) ~= "function" then return false end
  local ok = pcall(function()
  local old
  old = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
  if AR2_stForced ~= nil and self == AR2_Workspace
- and getnamecallmethod() == "GetServerTimeNow"
  and (AR2_rageShotActive or not checkcaller()) then
+ if getnamecallmethod() == "GetServerTimeNow" then
  return AR2_stForced
+ end
  end
  return old(self, ...)
  end))
  AR2_stHookInstalled = old ~= nil
- AR2_stHookHow = "__namecall fallback (hookfunction unavailable)"
  end)
  return ok and AR2_stHookInstalled
 end
@@ -7842,40 +7868,6 @@ AR2_spreadAngleLast   = nil
  function AR2_resolveSpreadAngle(pc, wi, wd)
  local best, src = nil, nil
  local raw
- pcall(function()
- local item = wd
- if item == nil and pc ~= nil then pcall(function() item = pc.EquippedItem end) end
- local function spreadFrom(o, depth)
- if depth > 2 or (type(o) ~= "table" and typeof(o) ~= "Instance") then return nil end
- local fn
- pcall(function() fn = o.SpreadAngle end)
- if type(fn) ~= "function" then fn = rawget(o, "SpreadAngle") end
- if type(fn) == "function" then
- local okA, a = pcall(fn, o)
- if okA and type(a) == "number" then return a end
- end
- for _, k in ipairs({ "RecoilSim", "Recoil", "Sim", "Firearm", "__item" }) do
- local sub
- pcall(function() sub = o[k] end)
- if sub == nil then sub = rawget(o, k) end
- if sub ~= nil then
- local a = spreadFrom(sub, depth + 1)
- if a then return a end
- end
- end
- return nil
- end
- if item ~= nil then raw = spreadFrom(item, 0) end
- end)
- if type(raw) == "number" and raw == raw and raw >= 0 then
- local a = raw > 0.2 and math.rad(raw) or raw
- if a < 1.6 then
- AR2_spreadAngleSource = "RecoilSim:SpreadAngle"
- AR2_spreadAngleLast = a
- return a
- end
- end
- raw = nil
  pcall(function()
  local item = wd
  if item == nil and pc ~= nil then pcall(function() item = pc.EquippedItem end) end
@@ -7934,6 +7926,8 @@ function AR2_spreadSelfTest(sentDir, wantDir, angle, serverTime)
 end
 AR2_syncWarned = false
 AR2_SYNC_OFFENDERS = {
+ { key = "instaBullets",
+ why = "fakes bullet speed -- breaks the server's re-simulation AND the aim prediction" },
  { key = "spreadFlySteady",
  why = "flagged CAN KICK" },
  { key = "wallbangTag",
@@ -8371,9 +8365,6 @@ function AR2_installNetHook()
  AR2_SRVINVIS.blocked = (AR2_SRVINVIS.blocked or 0) + 1
  return
  end
- end
- if type(msg) == "string" then
- local lmsg = string.lower(msg)
  end
  local res = table.pack(AR2_netSendOrig(self, msg, ...))
  if (AR2_CFG.misc.cosLearn or AR2_cosEnabled) and type(msg) == "string" then
@@ -17558,7 +17549,6 @@ function AR2_setForceSprint(on)
  AR2_sprintHeld = {}
  return true, "off"
  end
- if AR2_CFG.misc.forceSprint then pcall(AR2_setOmni, AR2_CFG.misc.omniSprint) end
  AR2_sprintConn = AR2_RunService.Heartbeat:Connect(function()
  if not (AR2_CFG.misc.forceSprint or AR2_CFG.misc.omniSprint) then return end
  local gc = AR2_resolveGameCharacter()
@@ -17611,7 +17601,7 @@ function AR2_setOmni(on)
  end
  return true, AR2_CFG.misc.omniSprint and "on" or "off"
  end
- if not (AR2_CFG.misc.omniSprint or AR2_CFG.misc.forceSprint) then return true, "off" end
+ if not AR2_CFG.misc.omniSprint then return true, "off" end
  local cfg = AR2_findCharConfig()
  if not cfg then
  warn("[ORIGIN] omni: could not find Configs.Character -- omni movement unavailable")
@@ -17653,9 +17643,6 @@ function AR2_setOmni(on)
  end
  AR2_omniDecide = omniDecide
  local function omniWrapper(sprintFlag, ...)
- if AR2_CFG.misc.forceSprint and AR2_CFG.misc.sprintAnyDir ~= false then
- sprintFlag = true
- end
  local a, b = orig(sprintFlag, ...)
  return omniDecide(sprintFlag, a, b)
  end
@@ -17670,9 +17657,6 @@ function AR2_setOmni(on)
  ok = pcall(function()
  local old
  old = hookfunction(orig, function(sprintFlag, ...)
- if AR2_CFG.misc.forceSprint and AR2_CFG.misc.sprintAnyDir ~= false then
- sprintFlag = true
- end
  local a, b = old(sprintFlag, ...)
  return omniDecide(sprintFlag, a, b)
  end)
@@ -21524,7 +21508,11 @@ function AR2_lrcParse(text)
 end
 function AR2_lyricsFor(now)
  if type(now) ~= "table" then return nil end
- local key = tostring(now.artist) .. "|" .. tostring(now.track)
+ if AR2_lyricKeyFor ~= now.track then
+ AR2_lyricKeyFor = now.track
+ AR2_lyricKey = tostring(now.artist) .. "|" .. tostring(now.track)
+ end
+ local key = AR2_lyricKey
  local hit = AR2_lyricCache[key]
  if hit ~= nil then
  if hit == false then return nil end
@@ -21578,19 +21566,42 @@ function AR2_openMusicPanel()
  root.Position = UDim2.fromOffset(40, 120)
  root.BackgroundTransparency = 1
  root.Parent = sg
+ local scrim = Instance.new("Frame")
+ scrim.Size = UDim2.fromOffset(360, 54)
+ scrim.Position = UDim2.fromOffset(-8, -6)
+ scrim.BackgroundColor3 = Color3.fromRGB(8, 8, 10)
+ scrim.BackgroundTransparency = 0.45
+ scrim.BorderSizePixel = 0
+ scrim.ZIndex = 0
+ scrim.Parent = root
+ Instance.new("UICorner", scrim).CornerRadius = UDim.new(0, 10)
+ local fade = Instance.new("UIGradient")
+ fade.Transparency = NumberSequence.new({
+ NumberSequenceKeypoint.new(0, 0),
+ NumberSequenceKeypoint.new(0.7, 0.25),
+ NumberSequenceKeypoint.new(1, 1),
+ })
+ fade.Parent = scrim
  local cover = Instance.new("ImageLabel")
- cover.Size = UDim2.fromOffset(72, 72)
+ cover.Size = UDim2.fromOffset(44, 44)
  cover.Position = UDim2.fromOffset(0, 0)
  cover.BackgroundColor3 = Color3.fromRGB(16, 16, 18)
- cover.BackgroundTransparency = 0.35
+ cover.BackgroundTransparency = 0.2
  cover.BorderSizePixel = 0
+ cover.ZIndex = 2
  cover.ScaleType = Enum.ScaleType.Fit
  cover.Parent = root
- Instance.new("UICorner", cover).CornerRadius = UDim.new(0, 6)
+ Instance.new("UICorner", cover).CornerRadius = UDim.new(0, 5)
+ local cstroke = Instance.new("UIStroke")
+ cstroke.Thickness = 1
+ cstroke.Color = accent
+ cstroke.Transparency = 0.45
+ cstroke.Parent = cover
  local function text(y, size, bold, col, x, w)
  local l = Instance.new("TextLabel")
- l.Size = UDim2.fromOffset(w or 276, size + 4)
- l.Position = UDim2.fromOffset(x or 82, y)
+ l.Size = UDim2.fromOffset(w or 250, size + 4)
+ l.Position = UDim2.fromOffset(x or 54, y)
+ l.ZIndex = 2
  l.BackgroundTransparency = 1
  l.Font = bold and AR2_FONT_BOLD or Enum.Font.Gotham
  l.TextSize = size
@@ -21603,11 +21614,12 @@ function AR2_openMusicPanel()
  l.Parent = root
  return l
  end
- local tName = text(2, 15, true, Color3.fromRGB(245, 245, 250))
- local tArt = text(22, 12, false, Color3.fromRGB(185, 185, 195))
+ local tName = text(0, 14, true, Color3.fromRGB(246, 246, 250))
+ local tArt = text(17, 11, false, Color3.fromRGB(176, 176, 188))
  local bar = Instance.new("Frame")
- bar.Size = UDim2.fromOffset(276, 3)
- bar.Position = UDim2.fromOffset(82, 42)
+ bar.Size = UDim2.fromOffset(250, 2)
+ bar.Position = UDim2.fromOffset(54, 36)
+ bar.ZIndex = 2
  bar.BackgroundColor3 = Color3.fromRGB(70, 70, 78)
  bar.BackgroundTransparency = 0.3
  bar.BorderSizePixel = 0
@@ -21617,13 +21629,14 @@ function AR2_openMusicPanel()
  fill.BackgroundColor3 = accent
  fill.BorderSizePixel = 0
  fill.Parent = bar
- local lPrev = text(56, 12, false, Color3.fromRGB(130, 130, 140), 0, 358)
- local lCur = text(74, 15, true, accent, 0, 358)
- local lNext = text(96, 12, false, Color3.fromRGB(130, 130, 140), 0, 358)
+ local lPrev = text(58, 12, false, Color3.fromRGB(122, 122, 134), 0, 356)
+ local lCur = text(76, 16, true, accent, 0, 356)
+ local lNext = text(100, 12, false, Color3.fromRGB(122, 122, 134), 0, 356)
  local function glyph(label, x, cb)
  local b = Instance.new("TextButton")
- b.Size = UDim2.fromOffset(26, 20)
- b.Position = UDim2.fromOffset(x, 20)
+ b.Size = UDim2.fromOffset(24, 18)
+ b.Position = UDim2.fromOffset(x, 14)
+ b.ZIndex = 2
  b.BackgroundTransparency = 1
  b.AutoButtonColor = false
  b.Font = AR2_FONT_BOLD
@@ -21635,9 +21648,9 @@ function AR2_openMusicPanel()
  b.MouseButton1Click:Connect(AR2_sw(cb))
  return b
  end
- glyph("<<", 282, function() AR2_spotPrev() end)
- local playBtn = glyph("||", 310, function() AR2_spotPlayPause() end)
- glyph(">>", 334, function() AR2_spotNext() end)
+ glyph("<<", 286, function() AR2_spotPrev() end)
+ local playBtn = glyph("||", 312, function() AR2_spotPlayPause() end)
+ glyph(">>", 336, function() AR2_spotNext() end)
  root.Active = true
  root.Draggable = true
  local function fmt(t)
@@ -21646,12 +21659,19 @@ function AR2_openMusicPanel()
  end
  AR2_musicPanelConn = AR2_RunService.RenderStepped:Connect(AR2_sw(function()
  local S = AR2_spotify
- if (os.clock() - (AR2_spotUiPoll or 0)) > 2 then
+ if not AR2_spotPolling and (os.clock() - (AR2_spotUiPoll or 0)) > 2.5 then
  AR2_spotUiPoll = os.clock()
- task.spawn(function() pcall(AR2_spotPoll) end)
+ AR2_spotPolling = true
+ task.spawn(function()
+ pcall(AR2_spotPoll)
+ AR2_spotPolling = false
+ end)
  end
+ local slow = (os.clock() - (AR2_spotUiSlow or 0)) > 0.05
  local n = S and S.now
  if type(n) ~= "table" then
+ if not slow then return end
+ AR2_spotUiSlow = os.clock()
  tName.Text = "nothing playing"
  tArt.Text = tostring((S and S.status) or "")
  cover.Image = ""
@@ -21659,14 +21679,20 @@ function AR2_openMusicPanel()
  lPrev.Text, lCur.Text, lNext.Text = "", "", ""
  return
  end
- tName.Text = n.track or "?"
- tArt.Text = ("%s  -  %s / %s"):format(n.artist or "", fmt(n.ms), fmt(n.dur))
- playBtn.Text = n.playing and "||" or ">"
+ if slow then
+ AR2_spotUiSlow = os.clock()
+ local nm = n.track or "?"
+ if tName.Text ~= nm then tName.Text = nm end
+ local sub = ("%s  -  %s / %s"):format(n.artist or "", fmt(n.ms), fmt(n.dur))
+ if tArt.Text ~= sub then tArt.Text = sub end
+ local pb = n.playing and "||" or ">"
+ if playBtn.Text ~= pb then playBtn.Text = pb end
  if (n.dur or 0) > 0 then
  fill.Size = UDim2.fromScale(AR2_safeClamp((n.ms or 0) / n.dur, 0, 1), 1)
  end
  local id = AR2_spotCover(n.art)
  if id and cover.Image ~= id then cover.Image = id end
+ end
  local lines = AR2_lyricsFor(n)
  if type(lines) ~= "table" then
  lPrev.Text, lCur.Text, lNext.Text = "", "", ""
@@ -23559,33 +23585,20 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23781: " .. tostring(_e) end end
  local sprintSection = movementTab:AddSection({Name="Sprint",Position="right"})
  do local _ok, _e = pcall(function()
+ addToggle(sprintSection,"ADS While Sprinting",AR2_CFG.misc,"adsWhileSprint",function(v) AR2_setAdsWhileSprint(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "ads sprint: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(sprintSection,"Omni Movement",AR2_CFG.misc,"omniSprint",function(v) AR2_setOmni(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "omni: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(sprintSection,"  Lateral Speed (lower = less rubberband)",AR2_CFG.misc,"omniSpeed",18,22,1)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "lateral: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
  AR2_uiMark("sprintSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23803: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addToggle(sprintSection,"ADS While Sprinting",AR2_CFG.misc,"adsWhileSprint",function(v) AR2_setAdsWhileSprint(v) end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23804: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
  addToggle(sprintSection,"Force Sprint (no ADS needed)",AR2_CFG.misc,"forceSprint",function(v) AR2_setForceSprint(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23805: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(sprintSection,"Omni Movement",AR2_CFG.misc,"omniSprint",function(v) AR2_setOmni(v) end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23806: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(sprintSection,"  └ Lateral Speed (lower = less rubberband)",AR2_CFG.misc,"omniSpeed",18,22,1)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23807: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(sprintSection,"  Sprint While ADS / Backwards",AR2_CFG.misc,"sprintAnyDir")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23808: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(sprintSection,"Top Speed",AR2_CFG.misc,"speedTopOn",function(v)
- AR2_speedTopSet(v)
- end)
- addSlider(sprintSection,"Forward Speed",AR2_CFG.speed,"capForward",12,29.5,0.5,
- function() if AR2_CFG.misc.speedTopOn then AR2_speedTopSet(true) end end)
- addSlider(sprintSection,"Strafe / Back Speed",AR2_CFG.speed,"capStrafe",12,29.5,0.5,
- function() if AR2_CFG.misc.speedTopOn then AR2_speedTopSet(true) end end)
- sprintSection:AddLabel("Forward only. Off-axis uses the lower number -- the server rejects the fast one sideways.")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "speed ui: " .. tostring(_e) end end
  local speedSection = movementTab:AddSection({Name="Speed Hack"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("speedSection")
@@ -23643,28 +23656,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addSlider(infJumpSection,"Jump Power",AR2_CFG.misc,"jumpPower",5,50,function(v) AR2_applyJumpConfig() end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23849: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- infJumpSection:AddLabel("Edits Configs.Character.Jump, which attemptJump "
- .. "reads. Held against resets.")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23850: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(infJumpSection,"Jump Power (default 32)",AR2_CFG.misc,"jumpPower",10,300,5)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23852: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(infJumpSection,"Free Jumps (default 3)",AR2_CFG.misc,"jumpFree",1,20,1)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23853: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- infJumpSection:AddButton({Name="Apply Jump",Callback=function()
- local ok, why = AR2_jumpSet(AR2_CFG.misc.jumpPower, AR2_CFG.misc.jumpFree, 0.05)
- AR2_notify(tostring(why), 12)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23854: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- infJumpSection:AddButton({Name="Restore Jump",Callback=function()
- local ok, why = AR2_jumpRestore()
- AR2_notify(tostring(why), 6)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23858: " .. tostring(_e) end end
  local jesusSection = movementTab:AddSection({Name="Water Walk"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("jesusSection")
@@ -23948,6 +23939,7 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24034: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
+ bulletSection:AddLabel("Cancels the shot cone. Angle comes from RecoilSim in radians.")
  addToggle(bulletSection,"Spread Compensation",AR2_CFG.weapon,"spreadComp",function(v)
  Notif.new({Title="YVL",Duration=8,Content=v
  and "cancels the cone instead of zeroing it -- needs Silent Aim hooked"
@@ -24782,9 +24774,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24473: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addToggle(protSec,"Block Kicks",AR2_CFG.misc,"kickShield",function(v)
- if v then AR2_installKickShield() end
- end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24477: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(protSec,"Spoof Reported Mouse",AR2_CFG.misc,"mouseSpoof",function(v)
@@ -25233,40 +25222,6 @@ AR2_kickBlocked = 0
 AR2_kickLast = "none"
 AR2_kickShieldOn = false
 AR2_kickWhy = "not installed"
-function AR2_installKickShield()
- if AR2_kickShieldOn then return true, AR2_kickWhy end
- if typeof(hookfunction) ~= "function" then
- AR2_kickWhy = "executor has no hookfunction"
- return false, AR2_kickWhy
- end
- local ok, err = pcall(function()
- local lp = AR2_LocalPlayer
- local orig
- local newfn = function(self, reason, ...)
- local isPlayer = false
- pcall(function() isPlayer = typeof(self) == "Instance" and self:IsA("Player") end)
- if isPlayer then
- AR2_kickBlocked = AR2_kickBlocked + 1
- AR2_kickLast = tostring(reason)
- warn("[YVL] blocked Kick: " .. tostring(reason))
- AR2_notify("BLOCKED A KICK\nreason: " .. tostring(reason)
- .. "\nYou are flagged on this server -- leave it.", 25)
- return
- end
- return orig(self, reason, ...)
- end
- if typeof(newcclosure) == "function" then newfn = newcclosure(newfn) end
- orig = hookfunction(lp.Kick, newfn)
- AR2_kickOrig = orig
- end)
- if not ok then
- AR2_kickWhy = "hookfunction failed: " .. tostring(err)
- return false, AR2_kickWhy
- end
- AR2_kickShieldOn = true
- AR2_kickWhy = "Player:Kick hooked"
- return true, AR2_kickWhy
-end
 function AR2_netHandlerTable()
  local net = AR2_networkLib()
  if type(net) ~= "table" or type(net.Add) ~= "function" then return nil end
@@ -25803,12 +25758,6 @@ AR2_DETECTED_CLASSES = {
  BodyVelocity = true, AlignPosition = true, AlignOrientation = true,
  BodyMover = true, LineForce = true, VectorForce = true, Torque = true,
 }
-AR2_SNITCH_MESSAGES = {
- ["Change Inventory Width"]   = "WalkSpeed probe failed -- something locks your WalkSpeed",
- ["Get Inventory Width"]      = "WalkSpeed off by more than 30",
- ["Character Movestate Sync"] = "a flagged mover was found on your character",
- ["Network Clock Step"] = "an unhandled error leaked its traceback",
-}
 AR2_guardConn   = nil
 AR2_guardHits   = 0
 AR2_guardLast   = "not running"
@@ -25858,149 +25807,6 @@ function AR2_charCfg()
  local ok, c = pcall(function() return AR2_fwGet("Configs", "Character") end)
  if ok and type(c) == "table" then return c end
  return nil
-end
-AR2_moveHeld = nil
-AR2_jumpHeld = nil
-AR2_moveHoldConn = nil
-function AR2_moveHoldStart()
- if AR2_moveHoldConn then return end
- local acc = 0
- AR2_moveHoldConn = game:GetService("RunService").Heartbeat:Connect(function(dt)
- acc = acc + dt
- if acc < 0.5 then return end
- acc = 0
- if not AR2_moveHeld and not AR2_jumpHeld
- and not (AR2_CFG.misc and AR2_CFG.misc.speedTopOn) then
- pcall(function() AR2_moveHoldConn:Disconnect() end)
- AR2_moveHoldConn = nil
- return
- end
- pcall(function()
- local c = AR2_charCfg()
- if type(c) ~= "table" then return end
- AR2_speedHoldTick()
- if AR2_jumpHeld then
- local j = rawget(c, "Jump")
- if type(j) == "table" then
- for k, v in pairs(AR2_jumpHeld) do
- if rawget(j, k) ~= v then j[k] = v end
- end
- end
- end
- end)
- end)
-end
-function AR2_speedTopSet(on)
- AR2_CFG.misc.speedTopOn = on and true or false
- if not on then
- AR2_moveHeld = nil
- local ok, why = AR2_speedRestore()
- return ok, why
- end
- local c = AR2_charCfg()
- if type(c) ~= "table" then return false, "Configs.Character unreachable" end
- local ms = rawget(c, "MoveSpeeds")
- if type(ms) ~= "table" then return false, "MoveSpeeds not found" end
- if not AR2_moveOrig then
- AR2_moveOrig = {}
- for k, v in pairs(ms) do if type(v) == "number" then AR2_moveOrig[k] = v end end
- end
- AR2_moveHeld = 1
- AR2_speedHoldTick()
- pcall(AR2_moveHoldStart)
- return true, "top speed on"
-end
-function AR2_speedHoldTick()
- if not (AR2_CFG.misc and AR2_CFG.misc.speedTopOn) then return end
- if not AR2_moveOrig then return end
- local c = AR2_charCfg()
- local ms = c and rawget(c, "MoveSpeeds")
- if type(ms) ~= "table" then return end
- local cap = AR2_speedCapNow()
- local top = 0
- for _, v in pairs(AR2_moveOrig) do if v > top then top = v end end
- if top <= 0 then return end
- local f = cap / top
- for k, v in pairs(AR2_moveOrig) do
- local want = v * f
- if want > cap then want = cap end
- if ms[k] ~= want then pcall(function() ms[k] = want end) end
- end
-end
-function AR2_speedCapNow()
- local fwd = tonumber(AR2_CFG.speed and AR2_CFG.speed.capForward) or 29.5
- local side = tonumber(AR2_CFG.speed and AR2_CFG.speed.capStrafe) or 20
- if side > fwd then side = fwd end
- local cap = side
- pcall(function()
- local char = AR2_LocalPlayer and AR2_LocalPlayer.Character
- local hum = char and char:FindFirstChildWhichIsA("Humanoid")
- if not hum then cap = fwd return end
- local mv = hum.MoveDirection
- if mv.Magnitude < 0.1 then cap = fwd return end
- local cam = workspace.CurrentCamera
- if not cam then cap = fwd return end
- local look = cam.CFrame.LookVector
- local flat = Vector3.new(look.X, 0, look.Z)
- if flat.Magnitude < 0.01 then cap = fwd return end
- if mv.Unit:Dot(flat.Unit) >= 0.55 then cap = fwd end
- end)
- return cap
-end
-function AR2_speedRestore()
- local c = AR2_charCfg()
- local ms = c and rawget(c, "MoveSpeeds")
- if type(ms) ~= "table" or not AR2_moveOrig then return false, "nothing to restore" end
- AR2_moveHeld = nil
- for k, v in pairs(AR2_moveOrig) do pcall(function() ms[k] = v end) end
- return true, "MoveSpeeds restored"
-end
-function AR2_jumpSet(power, freeJumps, rateLimit)
- local c = AR2_charCfg()
- if type(c) ~= "table" then return false, "Configs.Character unreachable" end
- local j = rawget(c, "Jump")
- if type(j) ~= "table" then return false, "Jump config not found" end
- if not AR2_jumpOrig then
- AR2_jumpOrig = {
- JumpPower = rawget(j, "JumpPower"),
- FreeJumps = rawget(j, "FreeJumps"),
- RateLimit = rawget(j, "RateLimit"),
- }
- end
- local done = {}
- if power then
- if pcall(function() j.JumpPower = AR2_safeClamp(power, 10, 300) end) then
- done[#done + 1] = "JumpPower"
- end
- end
- if freeJumps then
- if pcall(function() j.FreeJumps = math.floor(freeJumps) end) then
- done[#done + 1] = "FreeJumps"
- end
- end
- if rateLimit then
- if pcall(function() j.RateLimit = rateLimit end) then
- done[#done + 1] = "RateLimit"
- end
- end
- if #done > 0 then
- AR2_jumpHeld = AR2_jumpHeld or {}
- for _, k in ipairs(done) do AR2_jumpHeld[k] = rawget(j, k) end
- AR2_moveHoldStart()
- end
- return #done > 0, ("set %s (held against resets) -- attemptJump writes JumpPower onto your own "
- .. "Humanoid each jump (defaults 32 / 3 / 0.3)"):format(
- #done > 0 and table.concat(done, ", ") or "nothing")
-end
-function AR2_jumpRestore()
- local c = AR2_charCfg()
- local j = c and rawget(c, "Jump")
- if type(j) ~= "table" or not AR2_jumpOrig then return false, "nothing to restore" end
- AR2_jumpHeld = nil
- for k, v in pairs(AR2_jumpOrig) do
- if v ~= nil then pcall(function() j[k] = v end) end
- end
- return true, "Jump config restored"
 end
 AR2_auditedSends = 0
 AR2_auditedNames = {}
@@ -26326,10 +26132,6 @@ pcall(function()
  end)
 end)
 function AR2_netSend(name, ...)
- if AR2_SNITCH_MESSAGES[name] then
- AR2_guardLast = "refused to send snitch message: " .. tostring(name)
- return false
- end
  AR2_auditedSends = AR2_auditedSends + 1
  AR2_auditedNames[name] = (AR2_auditedNames[name] or 0) + 1
  local net = AR2_networkLib()
@@ -30190,21 +29992,11 @@ end
  local spotSection = settingsTab:AddSection({Name="Spotify"})
  AR2_uiMark("spotSection")
  local spotStatus = spotSection:AddLabel("not linked")
- spotSection:AddLabel("Controls the Spotify app on your PC. Premium account required.")
- spotSection:AddLabel("1. Open the Spotify developer dashboard (button below).")
- spotSection:AddLabel("2. Create app. Any name. Redirect URI: http://127.0.0.1:8888/callback")
- spotSection:AddLabel("   Use 127.0.0.1, NOT localhost -- Spotify rejects localhost since Apr 2025.")
- spotSection:AddLabel("3. Copy the Client ID and Client Secret into the boxes below.")
- spotSection:AddLabel("4. Get a Refresh Token once, with scopes user-read-playback-state")
- spotSection:AddLabel("   and user-modify-playback-state, then paste it below.")
- spotSection:AddLabel("5. Press Link Spotify. Play something in the app first.")
+ spotSection:AddLabel("Controls the Spotify desktop app. Premium account required.")
+ spotSection:AddLabel("1  Create an app on the Spotify dashboard.")
+ spotSection:AddLabel("2  Set its Redirect URI to  http://127.0.0.1:8888/callback")
  spotSection:AddButton({Name="Copy Dashboard Link",Callback=function()
  local url = "https://developer.spotify.com/dashboard"
- pcall(function() setclipboard(url) end)
- AR2_notify("copied: " .. url, 10)
- end})
- spotSection:AddButton({Name="Copy Refresh-Token Guide Link",Callback=function()
- local url = "https://developer.spotify.com/documentation/web-api/tutorials/code-flow"
  pcall(function() setclipboard(url) end)
  AR2_notify("copied: " .. url, 10)
  end})
@@ -30212,34 +30004,31 @@ end
  Callback=function(v) AR2_CFG.ui.spotifyId = tostring(v or "") end})
  spotSection:AddInput({Text="Client Secret",Placeholder="from the same app page",
  Callback=function(v) AR2_CFG.ui.spotifySecret = tostring(v or "") end})
- spotSection:AddLabel("-- getting the Refresh Token --")
- spotSection:AddButton({Name="STEP 1: Copy Auth Link",Callback=function()
+ spotSection:AddLabel("3  Authorise once. The page that fails to load is the one you copy.")
+ spotSection:AddButton({Name="Get Auth Link",Callback=function()
  local url, why = AR2_spotAuthUrl()
  if not url then AR2_notify(tostring(why), 8) return end
  pcall(function() setclipboard(url) end)
- AR2_notify("link copied -- open it in your browser, approve, then copy the "
- .. "whole address bar from the page that fails to load", 20)
+ AR2_notify("link copied. open it, approve, then copy the whole address "
+ .. "bar from the page that fails to load", 16)
  end})
- spotSection:AddInput({Text="STEP 2: Paste Code or Redirect URL",
+ spotSection:AddInput({Text="Paste Redirect URL",
  Placeholder="127.0.0.1:8888/callback?code=...",
  Callback=function(v) AR2_spotPastedCode = tostring(v or "") end})
- spotSection:AddButton({Name="STEP 3: Get Refresh Token",Callback=function()
+ spotSection:AddButton({Name="Exchange For Token",Callback=function()
  local ok, res = AR2_spotExchangeCode(AR2_spotPastedCode)
  if ok then
- AR2_notify("refresh token saved and copied to clipboard", 12)
+ AR2_notify("token saved and copied. press Link Account.", 12)
  pcall(function() spotStatus:SetText("refresh token acquired") end)
  else
  AR2_notify("failed: " .. tostring(res), 14)
  end
  end})
- spotSection:AddInput({Text="Refresh Token",Placeholder="filled by step 3",
+ spotSection:AddInput({Text="Refresh Token",Placeholder="filled in automatically",
  Callback=function(v) AR2_CFG.ui.spotifyRefresh = tostring(v or "") end})
  addToggle(spotSection,"Remember Login",AR2_CFG.ui,"spotifyRemember",function(v)
  if v then pcall(AR2_spotSaveCreds) else pcall(AR2_spotForgetCreds) end
  end)
- spotSection:AddButton({Name="Save Credentials Now",Callback=function()
- AR2_notify(AR2_spotSaveCreds() and "spotify credentials saved" or "save failed", 6)
- end})
  spotSection:AddButton({Name="Forget Saved Login",Callback=function()
  AR2_spotForgetCreds()
  AR2_notify("saved spotify login cleared", 6)
