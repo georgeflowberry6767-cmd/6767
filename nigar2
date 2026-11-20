@@ -84,6 +84,9 @@ if getgenv then
  if g.ORIGIN_HUB_ACTIVE then
  warn("[ORIGIN] already running -- unloading the previous instance first")
  pcall(function()
+ if type(g.__origin_hub_unload) == "function" then g.__origin_hub_unload() end
+ end)
+ pcall(function()
  local w = g.OriginHUB_Window
  if w then
  if type(w.Unload)  == "function" then w:Unload()
@@ -357,9 +360,10 @@ AR2_CFG = {
  previews = true, specPanel = true, openAll = false },
  lootTypes = { Firearm = true, Ammo = true, Medical = true, Melee = true,
   Explosive = true, Consumable = true, Utility = true, Deployable = true,
-  FuelCan = true, GlowLight = true, Emote = true },
+  FuelCan = true, GlowLight = true },
  players  = { on = false, visCheck = false, box = true, name = true, tracer = false, weapon = true,
- bag = false, gearGuns = false, gearArmor = false, dist = true, chams = true, maxDist = 2000, healthBar = true, skeleton = false, espHz = 60, kd = false },
+ bag = false, gearGuns = false, gearArmor = false, dist = true, chams = true, maxDist = 2000, healthBar = true, skeleton = false, espHz = 60, kd = false,
+ colorStates = false, colTarget = Color3.fromRGB(255, 70, 70), colVisible = Color3.fromRGB(90, 255, 130), colHidden = Color3.fromRGB(150, 150, 165) },
  zombies  = { on = false, box = true, name = false, tracer = false, agro = true, dist = true, maxDist = 2000, healthBar = true, skeleton = false,
  displayName = true, drops = false, dropsDist = 2000, threat = false,
  canStun = true, markRare = true, rareBelow = 0.3,
@@ -383,7 +387,7 @@ AR2_CFG = {
  tagName = true, chams = true, watchlist = {},
  alertPanel = true, alertSound = true, alertSecs = 6,
  alertSoundId = "9120386436", autoBail = false, bailMode = "Rejoin" },
- style    = { textSize = 13, boxThickness = 1, fillOpacity = 0.82,
+ style    = { textSize = 15, boxThickness = 1, fillOpacity = 0.82,
  textOutline = true, font = "Plex", rainbow = false, rainbowSpeed = 60,
  distFade = false, distFadeAt = 600, tracerThickness = 1, tracerFromBottom = true, cornerBox = true, fill = false, healthText = false, hpTrack = true, hpTrackWorld = false, hpMax = 100 },
  colors   = {
@@ -398,31 +402,31 @@ AR2_CFG = {
  mod     = Color3.fromRGB(255, 140, 0),
  staffLo = Color3.fromRGB(0, 225, 255),
  },
- aim      = { on = false, key = "MouseButton2", part = "HeadCollider", fov = 180, smooth = 18, wallCheck = true, showFov = true, players = true, zombies = false, maxDist = 1500 },
+ aim      = { on = false, key = "MouseButton2", part = "HeadCollider", fov = 180, smooth = 8, wallCheck = true, showFov = true, players = true, zombies = false, maxDist = 1500,
+ predict = true, stick = 1.5, humanize = false, humanJitter = 2, humanEase = true,
+ flick = false, flickKey = "E", flickFov = 150, flickFire = true, flickReturn = true },
  magicAim = {
  on = false, fov = 250, ignoreFov = false, maxDist = 2000, maxBend = 180,
  part = "Head", players = false, zombies = true, visCheck = false,
  showFov = true, showLockLine = true, autoSpeed = true, dropComp = true,
  bulletSpeed = 0, originShift = true, redirectChance = 100,
  originRadius = 2, originMemo = 0.25,
- maxLeadSpeed = 60, maxLeadStuds = 80, leadTrim = 1, dropTrim = 1,
- noTeammate = false,
+ maxLeadSpeed = 220, maxLeadStuds = 120, leadTrim = 1, dropTrim = 1,
+ noTeammate = false, resolveAngles = false,
  },
  magicBullet = { searchRadius = 2, forwardNudge = 0 },
  quietTelemetry = true, profiler = false,
  melee = { strike = false, shoveAura = false, rate = 3, shoveKey = "F", autoEquip = true,
- shoveMode = "Key Press", shoveFlag = true, meleeMode = "Real Swing",
+ shoveMode = "Direct Send", shoveFlag = true, meleeMode = "Send Packets",
  unstickUsing = true, unstickAfter = 3,
- meleeAura = false,
- auraTargets = 1, overReach = false, swingRate = 1, respectSpeed = true,
- players = true, zombies = true, swingRate = 6,
- auraRange = 2.93, auraTargets = 1,
- meleeAura = false, overReach = false, reachStuds = 4, shoveExtra = 1,
- faceExtra = 0,
- spoofOrigin = false, rangeTest = false, respectSpeed = true },
+ meleeAura = false, overReach = false, swingRate = 6, respectSpeed = true, hideSwing = false,
+ players = true, zombies = true,
+ auraRange = 2.93, auraTargets = 1, reachStuds = 4, shoveExtra = 1,
+ faceExtra = 0, faceTarget = true, silent = true,
+ spoofOrigin = false, rangeTest = false, spoofEquip = true, comboMax = 3, comboReset = 0.5 },
  rageBot = {
  on = false, maxDist = 800, ignoreFov = false, inventoryShoot = false, scanHz = 30,
-  invHoldEquip = true,
+  invHoldEquip = true, resolveAngles = false,
   originAdjust = true, originLog = false,
   originAdjustShots = false,
   penBudget = 1, originReach = 8, originNudge = 3, singleTarget = true,
@@ -442,11 +446,10 @@ AR2_CFG = {
  wallbangByStuds = false, wallbangStuds = 999,
  tagBudget = 400,
  originCal = false, originCalMax = 32,
- vehPush = true, vehPushPad = 2, vehPushMax = 40,
  autoMags = false, autoMagsSecs = 4, autoMagsLoot = true, autoMagsRange = 60,
  instaAds = false, adsMult = 12, noBob = false,
- serverSync = true, spreadComp = true, spreadExact = true,
- seedMode = "Off", seedGap = 0.6, seedTries = 1500, seedQuality = 0.01, spreadFlySteady = false,
+ serverSync = true, spreadComp = true, spreadExact = true, spreadResidual = 0,
+ seedMode = "Cone Unknown", seedGap = 0.6, seedTries = 1500, seedQuality = 0.01, spreadFlySteady = false,
  ibMaxMult = 3, ibDistCap = true, ibToleranceMs = 50,
  globalSpeed = false, globalSpeedMult = 1, zeroDrop = false,
  fakeWindows = false,
@@ -461,7 +464,7 @@ AR2_CFG = {
  sightScale = 1, sightX = 0, sightY = 0, sightZ = 0,
  sightPitch = 0, sightYaw = 0, sightRoll = 0,
  netReloadDelay = 0,
- hbeOn = false, hbeSize = 4,
+ hbeOn = false, hbeSize = 4, thickHead = false, thickHeadRadius = 6, backtrack = false, backtrackMs = 20, backtrackMin = 3, seedWindowMs = 10,
  autoReload = false, alwaysSuppressed = false,
  vehicleEquip = false,
  },
@@ -537,7 +540,7 @@ AR2_CFG = {
  freecam = false, freecamSpeed = 60, spectate = false, specDist = 10, specNative = true,
  specMode = "Body", specStream = true, specSeen = true, specFirst = false,
  specOrbitSens = 6, specZoom = 12,
- swimSpoof = false, swimRadius = 10, swimCap = 60,
+ swimSpoof = false, swimRadius = 100, swimCap = 100000,
  highGhost = false, ghostAlt = 1400, ghostRender = true, forceRender = false,
  ghostMoveSpeed = 80, ghostLiftDelay = 2,
  ghostMode = "Under Map", ghostDepth = 30, ghostFollowCam = true,
@@ -625,7 +628,7 @@ AR2_CFG = {
  hitFeed = false,
  mouseSpoof = false, mouseEase = 0.25,
  autoConsume = false, acHydration = 40, acEnergy = 40, acHealth = 50,
- acMeds = true, acNotify = true,
+ acMeds = true, acNotify = true, silentConsume = false, silentConsumeWait = 3,
  detGuard = false, detGuardRemove = true, killDetectors = false, stripHardcore = false, realInvis = false,
  invisFull = false,
  speedTarget = 29,
@@ -639,6 +642,8 @@ AR2_CFG = {
  removeShadows = false,
  killEsp = false, killEspDist = 400, killEspFill = 0.72,
  killfeedSpoof = false, killfeedName = "YVL",
+ emote = "Off", emoteSpeed = 13,
+ chinaHat = { enabled = false, color = Color3.fromRGB(230,40,40), material = "Neon", size = 3, height = 4, transparency = 0 },
  forceSight = false, sightName = "None", sightWeld = true, sightScale = 1,
  sightX = 0, sightY = 0, sightZ = 0, sightAuto = true,
  sightPitch = 0, sightYaw = 0, sightRoll = 0,
@@ -755,7 +760,7 @@ function AR2_accentColor()
 end
 AR2_LOOT_TYPES = {
  "Firearm", "Ammo", "Medical", "Melee", "Explosive", "Consumable",
- "Utility", "Deployable", "FuelCan", "GlowLight", "Emote",
+ "Utility", "Deployable", "FuelCan", "GlowLight",
 }
 AR2_lootTypeSeen = {}
 AR2_HITSOUND_PRESETS = {
@@ -1098,6 +1103,8 @@ function AR2_toggleHitmarker() end
 function AR2_toggleCrosshair() end
 function AR2_toggleRespawnTP() end
 function AR2_hbeSetEnabled() end
+function AR2_thickHeadSetEnabled() end
+function AR2_btSetEnabled() end
 function AR2_cosSetEnabled() end
 function AR2_setAutoReload() end
 function AR2_setRemoveShadows() end
@@ -1123,7 +1130,6 @@ function AR2_setRemoveDoors() end
 function AR2_setRemoveSunRays() end
 function AR2_setCustomAmbient() end
 function AR2_carPick() return nil end
-function AR2_setInstaBullets() return false end
 function AR2_carConfig() return nil end
 function AR2_set3pAds() end
 AR2_COLORS = {
@@ -1492,7 +1498,7 @@ function AR2_applyLoadedConfig()
  s(function() AR2_toggleStatusPanel(AR2_CFG.ui.statusPanel) end)
  s(function() AR2_toggleHidePlayer(AR2_CFG.misc.hidePlayer) end)
  s(function() AR2_toggleHideGun(AR2_CFG.misc.hideGun) end)
- s(function() AR2_hideGameGuiSet(AR2_CFG.misc.hideGameGui) end)
+ s(function() AR2_CFG.misc.hideGameGui = false AR2_hideGameGuiSet(false) end)
  s(function() AR2_hideCrossSet(AR2_CFG.misc.hideGameCross) end)
  s(function() AR2_setWallbangAll(AR2_CFG.weapon.wallbang) end)
  s(function()
@@ -1560,11 +1566,14 @@ function AR2_applyLoadedConfig()
  end
  end)
  s(function() if AR2_CFG.weapon.hbeOn then AR2_hbeSetEnabled(true) else AR2_hbeSetEnabled(false) end end)
+ s(function() if AR2_CFG.weapon.thickHead then AR2_thickHeadSetEnabled(true) else AR2_thickHeadSetEnabled(false) end end)
+ s(function() if AR2_CFG.weapon.backtrack then AR2_btSetEnabled(true) else AR2_btSetEnabled(false) end end)
  s(function() AR2_setAutoReload(AR2_CFG.weapon.autoReload) end)
  s(function() AR2_setInstantInteract(AR2_CFG.misc.instantInteract) end)
  s(function() AR2_setPlayerJesus(AR2_CFG.misc.playerJesus) end)
  s(function() AR2_setSelfBacktrack(AR2_CFG.misc.selfBacktrack.enabled) end)
  s(function() AR2_setJumpCircle(AR2_CFG.misc.jumpCircle.enabled) end)
+ s(function() AR2_chinaHatSet(AR2_CFG.misc.chinaHat and AR2_CFG.misc.chinaHat.enabled) end)
  s(function() AR2_setClouds(AR2_CFG.visuals.cloudsEnabled, AR2_CFG.visuals.modifyClouds, AR2_CFG.visuals.cloudsColor, AR2_CFG.visuals.cloudsCover, AR2_CFG.visuals.cloudsDensity) end)
  s(function() AR2_setColorCorrection(AR2_CFG.visuals.colorCorrectionEnabled, AR2_CFG.visuals.ccSaturation, AR2_CFG.visuals.ccContrast, AR2_CFG.visuals.ccBrightness) end)
  s(function() AR2_toggleWorldwide(AR2_CFG.magicAim.ignoreFov) end)
@@ -1822,6 +1831,7 @@ function AR2_resetConfig()
  AR2_setPlayerJesus(false)
  AR2_setSelfBacktrack(false)
  AR2_setJumpCircle(false)
+ AR2_chinaHatSet(false)
  AR2_setRemoveShadows(false)
  AR2_setClouds(false, false, nil, nil, nil)
  AR2_setColorCorrection(false)
@@ -2160,6 +2170,16 @@ function AR2_getSmoothedVelocity(model, position)
  }
  return smoothed
 end
+function AR2_bestVelocity(model, part)
+ if typeof(part) ~= "Instance" then return Vector3.zero end
+ local v = Vector3.zero
+ pcall(function() v = AR2_getSmoothedVelocity(model, part.Position) end)
+ pcall(function()
+ local alv = part.AssemblyLinearVelocity
+ if typeof(alv) == "Vector3" and alv.Magnitude > v.Magnitude then v = alv end
+ end)
+ return v
+end
 AR2_ghostBodyCache = nil
 AR2_ghostBodyCacheAt = 0
 function AR2_buildPlayer(model)
@@ -2168,7 +2188,7 @@ function AR2_buildPlayer(model)
  if not anchor then return nil end
  local player = AR2_Players:GetPlayerFromCharacter(model)
  local itemName = AR2_equippedItem(model)
- local velocity = AR2_getSmoothedVelocity(model, anchor.Position)
+ local velocity = AR2_bestVelocity(model, anchor)
  return {
  kind = "player", model = model, player = player,
  name = player and player.Name or model.Name,
@@ -2362,7 +2382,7 @@ function AR2_buildZombie(model)
  local p = AR2_parts(model)
  local anchor = p.root or p.torso or p.head
  if not anchor then return nil end
- local velocity = AR2_getSmoothedVelocity(model, anchor.Position)
+ local velocity = AR2_bestVelocity(model, anchor)
  local cfg = AR2_zombieConfig(model.Name)
  return {
  kind = "zombie", model = model, name = model.Name,
@@ -2471,13 +2491,25 @@ function AR2_buildVehicle(model)
  moving = anchor.AssemblyLinearVelocity.Magnitude > 1,
  }
 end
-function AR2_collect(container, builder)
+function AR2_collect(container, builder, maxDist)
  local list = {}
  if not container then return list end
+ local origin = AR2_ORIGIN
+ local cutoff = (type(maxDist) == "number" and typeof(origin) == "Vector3")
+ and (maxDist + 25) or nil
  for _, child in ipairs(container:GetChildren()) do
  if child:IsA("Model") then
+ local skip = false
+ if cutoff then
+ local a = child:FindFirstChild("HumanoidRootPart")
+ or child:FindFirstChild("Torso")
+ or child:FindFirstChild("Head")
+ if a and (a.Position - origin).Magnitude > cutoff then skip = true end
+ end
+ if not skip then
  local e = builder(child)
  if e then list[#list + 1] = e end
+ end
  end
  end
  table.sort(list, function(a, b) return a.distance < b.distance end)
@@ -2635,7 +2667,15 @@ function AR2_api.zombies()
  AR2_Zombies = AR2_Workspace:FindFirstChild("Zombies")
  end
  AR2_ORIGIN = AR2_localPosition()
- return AR2_collect(AR2_Zombies, AR2_buildZombie)
+ local lim = 0
+ pcall(function()
+ lim = math.max(
+ tonumber(AR2_CFG.zombies and AR2_CFG.zombies.maxDist) or 0,
+ tonumber(AR2_CFG.radar and AR2_CFG.radar.zombieRange) or 0,
+ tonumber(AR2_CFG.panel and AR2_CFG.panel.maxDist) or 0)
+ end)
+ if lim <= 0 then lim = 1500 end
+ return AR2_collect(AR2_Zombies, AR2_buildZombie, lim)
  end)
 end
 function AR2_api.vehicles()
@@ -3134,26 +3174,26 @@ function AR2_screenBox(model, useWhitelist)
  if useWhitelist then return AR2_screenBox(model, false) end
  return nil
  end
- local lo = Vector3.new(math.huge, math.huge, math.huge)
- local hi = Vector3.new(-math.huge, -math.huge, -math.huge)
+ local loX, loY, loZ = math.huge, math.huge, math.huge
+ local hiX, hiY, hiZ = -math.huge, -math.huge, -math.huge
  local any = false
  for i = 1, #parts do
  local part = parts[i]
  if part.Parent then
  local cf, sz = part.CFrame, part.Size
  local r, u, l = cf.RightVector, cf.UpVector, cf.LookVector
- local hx = math.abs(r.X) * sz.X + math.abs(u.X) * sz.Y + math.abs(l.X) * sz.Z
- local hy = math.abs(r.Y) * sz.X + math.abs(u.Y) * sz.Y + math.abs(l.Y) * sz.Z
- local hz = math.abs(r.Z) * sz.X + math.abs(u.Z) * sz.Y + math.abs(l.Z) * sz.Z
+ local ex = (math.abs(r.X)*sz.X + math.abs(u.X)*sz.Y + math.abs(l.X)*sz.Z) * 0.5
+ local ey = (math.abs(r.Y)*sz.X + math.abs(u.Y)*sz.Y + math.abs(l.Y)*sz.Z) * 0.5
+ local ez = (math.abs(r.Z)*sz.X + math.abs(u.Z)*sz.Y + math.abs(l.Z)*sz.Z) * 0.5
  local c = cf.Position
- local e = Vector3.new(hx, hy, hz) * 0.5
- local a1, b1 = c - e, c + e
- if a1.X < lo.X then lo = Vector3.new(a1.X, lo.Y, lo.Z) end
- if a1.Y < lo.Y then lo = Vector3.new(lo.X, a1.Y, lo.Z) end
- if a1.Z < lo.Z then lo = Vector3.new(lo.X, lo.Y, a1.Z) end
- if b1.X > hi.X then hi = Vector3.new(b1.X, hi.Y, hi.Z) end
- if b1.Y > hi.Y then hi = Vector3.new(hi.X, b1.Y, hi.Z) end
- if b1.Z > hi.Z then hi = Vector3.new(hi.X, hi.Y, b1.Z) end
+ local aX, aY, aZ = c.X - ex, c.Y - ey, c.Z - ez
+ local bX, bY, bZ = c.X + ex, c.Y + ey, c.Z + ez
+ if aX < loX then loX = aX end
+ if aY < loY then loY = aY end
+ if aZ < loZ then loZ = aZ end
+ if bX > hiX then hiX = bX end
+ if bY > hiY then hiY = bY end
+ if bZ > hiZ then hiZ = bZ end
  any = true
  end
  end
@@ -3162,17 +3202,20 @@ function AR2_screenBox(model, useWhitelist)
  if useWhitelist then return AR2_screenBox(model, false) end
  return nil
  end
- local mid  = (lo + hi) * 0.5
- local span = (hi - lo).Magnitude * 0.5
- if cam.CFrame:PointToObjectSpace(mid).Z > span then return nil end
+ local midX, midY, midZ = (loX+hiX)*0.5, (loY+hiY)*0.5, (loZ+hiZ)*0.5
+ local dX, dY, dZ = hiX-loX, hiY-loY, hiZ-loZ
+ local span = math.sqrt(dX*dX + dY*dY + dZ*dZ) * 0.5
+ if cam.CFrame:PointToObjectSpace(Vector3.new(midX, midY, midZ)).Z > span then
+ return nil
+ end
  local minX, minY = math.huge, math.huge
  local maxX, maxY = -math.huge, -math.huge
  local onScreen = false
  for x = 0, 1 do for y = 0, 1 do for z = 0, 1 do
  local pt = cam:WorldToViewportPoint(Vector3.new(
- x == 0 and lo.X or hi.X,
- y == 0 and lo.Y or hi.Y,
- z == 0 and lo.Z or hi.Z))
+ x == 0 and loX or hiX,
+ y == 0 and loY or hiY,
+ z == 0 and loZ or hiZ))
  if pt.Z > 0 then
  onScreen = true
  if pt.X < minX then minX = pt.X end
@@ -3380,7 +3423,7 @@ function AR2_espTint(color, dist)
  return color
 end
 function AR2_drawEntity(model, color, label, sub, opt)
- local x, y, w, h = AR2_screenBox(model, opt.skeleton ~= nil)
+ local x, y, w, h = AR2_screenBox(model, true)
  if not x then return false end
  color = AR2_espTint(color, AR2_lastEntityDist)
  AR2_slot = AR2_slot + 1
@@ -3617,6 +3660,12 @@ function AR2_buildFrame()
  local sc = AR2_CFG.staff
  local aimTargetModel = AR2_magicAim and AR2_magicAim.target
  and AR2_magicAim.target.model or nil
+ if (AR2_CFG.magicAim.on or AR2_CFG.rageBot.on) and AR2_CFG.players.colorStates then
+ pcall(function()
+ local tent = AR2_magicTarget()
+ if tent and tent.model then aimTargetModel = tent.model end
+ end)
+ end
  for _, e in ipairs(AR2_api.players()) do
  local st = AR2_staffOf(e.name)
  local inRange = e.distance <= c.maxDist
@@ -3629,18 +3678,24 @@ function AR2_buildFrame()
  or AR2_COLORS.staffLo or color
  end
  local vis = nil
- if c.visCheck then
+ if c.visCheck or c.colorStates then
  local vp
  pcall(function()
  vp = e.model and (e.model:FindFirstChild("Head")
  or e.model:FindFirstChild("HumanoidRootPart"))
  end)
- if vp then
- vis = AR2_espVisible(e.model, vp)
- if vis == false then
+ if vp then vis = AR2_espVisible(e.model, vp) end
+ end
+ if c.colorStates then
+ if aimTargetModel and e.model == aimTargetModel then
+ color = AR2_CFG.players.colTarget or color
+ elseif vis == false then
+ color = AR2_CFG.players.colHidden or color
+ else
+ color = AR2_CFG.players.colVisible or color
+ end
+ elseif c.visCheck and vis == false then
  color = Color3.new(color.R * 0.4, color.G * 0.4, color.B * 0.4)
- end
- end
  end
  local label = c.name and e.name or nil
  if st and sc and sc.esp and sc.tagName then
@@ -6081,6 +6136,215 @@ function AR2_hideGuiSync()
  AR2_hideGuiConn = nil
  end
 end
+AR2_emoteName  = "Off"
+AR2_emoteBound = false
+AR2_emoteCache = nil
+AR2_EMOTE_BIND = "AR2_Emote"
+AR2_EMOTE_POSED = {
+ LeftShoulder = true, RightShoulder = true, LeftElbow = true, RightElbow = true,
+ LeftHip = true, RightHip = true, LeftKnee = true, RightKnee = true,
+ Waist = true, Neck = true, Root = true, RootJoint = true,
+}
+function AR2_emoteJoints()
+ local c = AR2_emoteCache
+ local ok = c ~= nil
+ if ok then
+ for _, rec in pairs(c) do if not rec.m.Parent then ok = false break end end
+ end
+ if ok then return c end
+ local out = {}
+ pcall(function()
+ local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
+ if not ch then return end
+ for _, d in ipairs(ch:GetDescendants()) do
+ if d:IsA("Motor6D") and AR2_EMOTE_POSED[d.Name] and not out[d.Name] then
+ out[d.Name] = { m = d, base = d.C0 }
+ end
+ end
+ end)
+ AR2_emoteCache = out
+ return out
+end
+function AR2_emoteRestore()
+ local c = AR2_emoteCache
+ if not c then return end
+ for _, rec in pairs(c) do
+ pcall(function() if rec.m.Parent then rec.m.C0 = rec.base end end)
+ end
+end
+function AR2_emoteStep()
+ if AR2_emoteName == "Off" then return end
+ local j = AR2_emoteJoints()
+ if not j then return end
+ local ANG, rad, CF = CFrame.Angles, math.rad, CFrame.new
+ local speed = AR2_safeClamp(tonumber(AR2_CFG.misc.emoteSpeed) or 13, 2, 30)
+ local function pose(name, cf)
+ local rec = j[name]
+ if rec and rec.m.Parent then
+ pcall(function() rec.m.Transform = CF(); rec.m.C0 = rec.base * cf end)
+ end
+ end
+ for _, rec in pairs(j) do
+ if rec.m.Parent then
+ pcall(function() rec.m.Transform = CF(); rec.m.C0 = rec.base end)
+ end
+ end
+ if AR2_emoteName == "Crab Rave" then
+ local beat  = os.clock() * speed * 0.6
+ local seg   = math.floor(beat / 4) % 2                 
+ local snap  = math.sin(beat * math.pi * 2) * 0.5 + 0.5 
+ local sway  = math.sin(beat * math.pi * 0.5)           
+ local squat = math.sin(beat * math.pi) * 0.5 + 0.5     
+ local sq    = squat * ((seg == 1) and 1 or 0.45)       
+ pose("Root",      CF(0, -0.7 * sq, 0))
+ pose("RootJoint", CF(0, -0.7 * sq, 0))
+ pose("LeftHip",   ANG(rad(26 * sq), 0,  rad(6)))
+ pose("RightHip",  ANG(rad(26 * sq), 0, -rad(6)))
+ pose("LeftKnee",  ANG(-rad(50 * sq), 0, 0))
+ pose("RightKnee", ANG(-rad(50 * sq), 0, 0))
+ pose("Waist", ANG(0, rad(6 * sway), rad(18 * sway)))
+ pose("Neck",  ANG(rad(-8), 0, rad(9 * sway)))
+ if seg == 0 then
+ local sw = math.sin(beat * math.pi)
+ pose("LeftShoulder",  ANG(rad(75 * sw), 0, -rad(8)))
+ pose("RightShoulder", ANG(rad(75 * sw), 0,  rad(8)))
+ pose("LeftElbow",     ANG(rad(18 + 14 * snap), 0, 0))
+ pose("RightElbow",    ANG(rad(18 + 14 * snap), 0, 0))
+ else
+ pose("LeftShoulder",  ANG(0, 0, -rad(150) + rad(16 * snap)))
+ pose("RightShoulder", ANG(0, 0,  rad(150) - rad(16 * snap)))
+ pose("LeftElbow",     ANG(rad(40 + 22 * snap), 0, 0))
+ pose("RightElbow",    ANG(rad(40 + 22 * snap), 0, 0))
+ end
+ elseif AR2_emoteName == "Aura Farm" then
+ local beat = os.clock() * speed * 0.5
+ local seg  = math.floor(beat) % 4
+ local ph   = beat % 1                        
+ local TAU  = math.pi * 2
+ pose("LeftHip",   ANG(rad(8), 0, 0))
+ pose("RightHip",  ANG(rad(8), 0, 0))
+ pose("LeftKnee",  ANG(-rad(16), 0, 0))
+ pose("RightKnee", ANG(-rad(16), 0, 0))
+ pose("Root",      CF(0, -0.16, 0))
+ pose("RootJoint", CF(0, -0.16, 0))
+ if seg == 0 or seg == 2 then
+ local a  = ph * TAU * 2
+ local La = a + math.pi
+ pose("RightShoulder", ANG(rad(55 + 22 * math.cos(a)),  0, -rad(40)))
+ pose("LeftShoulder",  ANG(rad(55 + 22 * math.cos(La)), 0,  rad(40)))
+ pose("RightElbow",    ANG(rad(75 + 35 * math.sin(a)),  0, 0))
+ pose("LeftElbow",     ANG(rad(75 + 35 * math.sin(La)), 0, 0))
+ pose("Neck",  ANG(rad(-6), 0, 0))
+ elseif seg == 1 then
+ local s = math.sin(ph * TAU)
+ pose("Waist", ANG(0, rad(30 * s), rad(6 * s)))
+ pose("Neck",  ANG(rad(-7), rad(11 * s), 0))
+ pose("RightShoulder", ANG(rad(72), 0,  rad(12) + rad(52 * s)))  
+ pose("RightElbow",    ANG(rad(22), 0, 0))
+ pose("LeftShoulder",  ANG(rad(24), 0, -rad(18)))               
+ pose("LeftElbow",     ANG(rad(40), 0, 0))
+ else
+ local s = math.sin(ph * TAU)
+ pose("Waist", ANG(0, rad(16 * s), 0))
+ pose("LeftShoulder",  ANG(rad(35 - 70 * s), 0,  rad(8)))   
+ pose("RightShoulder", ANG(rad(35 + 70 * s), 0, -rad(8)))   
+ pose("LeftElbow",     ANG(rad(16), 0, 0))
+ pose("RightElbow",    ANG(rad(16), 0, 0))
+ pose("Neck",  ANG(rad(-7), rad(-11 * s), 0))
+ end
+ end
+end
+function AR2_emoteSet(name)
+ name = tostring(name or "Off")
+ AR2_emoteName = name
+ AR2_CFG.misc.emote = name
+ if name ~= "Off" then
+ AR2_emoteCache = nil
+ if not AR2_emoteBound then
+ local ok = pcall(function()
+ AR2_RunService:BindToRenderStep(AR2_EMOTE_BIND,
+ Enum.RenderPriority.Character.Value + 2, AR2_sw(AR2_emoteStep))
+ end)
+ AR2_emoteBound = ok and true or false
+ end
+ AR2_notify(name .. " emote on", 3)
+ else
+ if AR2_emoteBound then
+ pcall(function() AR2_RunService:UnbindFromRenderStep(AR2_EMOTE_BIND) end)
+ AR2_emoteBound = false
+ end
+ AR2_emoteRestore()
+ AR2_notify("emote off", 2)
+ end
+end
+AR2_chinaHatPart = nil
+AR2_chinaHatConn = nil
+AR2_CHINA_MATS = {"Neon","ForceField"}
+function AR2_chinaHatMaterial()
+ local name = tostring((AR2_CFG.misc.chinaHat and AR2_CFG.misc.chinaHat.material) or "Neon")
+ local ok, mat = pcall(function() return Enum.Material[name] end)
+ return (ok and mat) or Enum.Material.Neon
+end
+function AR2_chinaHatHead()
+ local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
+ if not ch then return nil end
+ return ch:FindFirstChild("Head") or ch:FindFirstChild("UpperTorso") or ch:FindFirstChild("HumanoidRootPart")
+end
+function AR2_chinaHatApply()
+ local cfg = AR2_CFG.misc.chinaHat
+ if not cfg then return end
+ local head = AR2_chinaHatHead()
+ if not head then return end
+ local p = AR2_chinaHatPart
+ if not p or not p.Parent then
+ if p then pcall(function() p:Destroy() end) end
+ p = Instance.new("Part")
+ p.Name = "YVL_ChinaHat"
+ p.CanCollide = false; p.CanQuery = false; p.CanTouch = false
+ p.Massless = true; p.Anchored = false; p.CastShadow = false
+ local sm = Instance.new("SpecialMesh")
+ sm.MeshType = Enum.MeshType.FileMesh
+ sm.MeshId = "rbxassetid://1033714"
+ sm.Parent = p
+ local w = Instance.new("Weld")
+ w.Name = "YVL_ChinaHatWeld"
+ w.Part1 = p
+ w.Parent = p
+ AR2_chinaHatPart = p
+ end
+ pcall(function()
+ local size = AR2_safeClamp(tonumber(cfg.size) or 3, 0.3, 300)
+ local height = AR2_safeClamp(tonumber(cfg.height) or 4, 0.3, 300)
+ p.Size = Vector3.new(size * 2, height, size * 2)
+ local sm = p:FindFirstChildOfClass("SpecialMesh")
+ if sm then sm.Scale = Vector3.new(size / 3, height / 4, size / 3) end
+ p.Material = AR2_chinaHatMaterial()
+ p.Color = (typeof(cfg.color) == "Color3") and cfg.color or Color3.fromRGB(230,40,40)
+ p.Transparency = AR2_safeClamp(tonumber(cfg.transparency) or 0, 0, 1)
+ local lift = (head.Size and head.Size.Y * 0.5 or 0.6) - 0.3
+ local w = p:FindFirstChild("YVL_ChinaHatWeld")
+ if w then w.Part0 = head; w.C0 = CFrame.new(0, lift, 0) end
+ p.Parent = head
+ end)
+end
+function AR2_chinaHatSet(on)
+ on = on and true or false
+ if AR2_CFG.misc.chinaHat then AR2_CFG.misc.chinaHat.enabled = on end
+ if on then
+ AR2_chinaHatApply()
+ if not AR2_chinaHatConn and AR2_LocalPlayer then
+ AR2_chinaHatConn = AR2_LocalPlayer.CharacterAdded:Connect(function()
+ task.wait(0.4)
+ if AR2_CFG.misc.chinaHat and AR2_CFG.misc.chinaHat.enabled then pcall(AR2_chinaHatApply) end
+ end)
+ end
+ AR2_notify("china hat on", 3)
+ else
+ if AR2_chinaHatConn then pcall(function() AR2_chinaHatConn:Disconnect() end) AR2_chinaHatConn = nil end
+ if AR2_chinaHatPart then pcall(function() AR2_chinaHatPart:Destroy() end) AR2_chinaHatPart = nil end
+ AR2_notify("china hat off", 2)
+ end
+end
 function AR2_hideGameGuiSet(on)
  on = on and true or false
  AR2_CFG.misc.hideGameGui = on
@@ -6655,34 +6919,73 @@ function AR2_isVisible(model, part)
  AR2_visCache[part] = { t = now, v = v }
  return v
 end
-function AR2_getTarget(mousePos)
+AR2_RESOLVE_BONES = { "Head", "UpperTorso", "LowerTorso", "HumanoidRootPart",
+ "Torso", "LeftUpperArm", "RightUpperArm", "LeftUpperLeg", "RightUpperLeg" }
+function AR2_isVisibleResolve(model, part, resolveOn)
+ if AR2_CFG.weapon.hbeOn and typeof(model) == "Instance" then
+ local h = model:FindFirstChild("Head")
+ if h then return AR2_isVisible(model, h) end
+ end
+ if AR2_isVisible(model, part) then return true end
+ if not resolveOn or typeof(model) ~= "Instance" then return false end
+ for _, bn in ipairs(AR2_RESOLVE_BONES) do
+ local b = model:FindFirstChild(bn)
+ if b and b ~= part and AR2_isVisible(model, b) then return true end
+ end
+ return false
+end
+function AR2_getTarget(mousePos, sticky)
  local cam = Workspace.CurrentCamera
  local c = AR2_CFG.aim
- local best, bestPart, bestDist = nil, nil, c.fov
  local pool = {}
  if c.players then for _, e in ipairs(AR2_api.players()) do pool[#pool+1] = e end end
  if c.zombies then for _, e in ipairs(AR2_api.zombies()) do pool[#pool+1] = e end end
+ local function consider(wantModel, fovLim)
+ local best, bestPart, bestDist = nil, nil, fovLim
  for _, entity in ipairs(pool) do
- if entity.distance <= c.maxDist then
+ if (wantModel == nil or entity.model == wantModel) and entity.distance <= c.maxDist then
  local part = AR2_aimPartOf(entity, c.part)
  if part then
- local screenPos, onScreen = cam:WorldToViewportPoint(part.Position)
- if onScreen and screenPos.Z > 0 then
- local flat = (mousePos - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
- if flat < bestDist then
- if not c.wallCheck or AR2_isVisible(entity.model, part) then
+ local sp, on = cam:WorldToViewportPoint(part.Position)
+ if on and sp.Z > 0 then
+ local flat = (mousePos - Vector2.new(sp.X, sp.Y)).Magnitude
+ if flat < bestDist and (not c.wallCheck or AR2_isVisible(entity.model, part)) then
  best, bestPart, bestDist = entity, part, flat
  end
  end
  end
  end
  end
- end
  return best, bestPart
+ end
+ if sticky then
+ local stickFov = c.fov * AR2_safeClamp(tonumber(c.stick) or 1.5, 1, 4)
+ local e, p = consider(sticky, stickFov)
+ if e then return e, p end
+ end
+ return consider(nil, c.fov)
+end
+AR2_aimLastT = nil
+function AR2_aimDt(now)
+ local dt = AR2_aimLastT and (now - AR2_aimLastT) or (1 / 60)
+ AR2_aimLastT = now
+ if dt <= 0 or dt > 0.1 then dt = 1 / 60 end
+ return dt
+end
+function AR2_aimPointFor(cam, entity, part)
+ local aimPos = part.Position
+ if AR2_CFG.aim.predict then
+ pcall(function()
+ local vel = AR2_bestVelocity(entity.model, part)
+ aimPos = AR2_predict(part, cam.CFrame.Position, vel)
+ end)
+ end
+ return aimPos
 end
 function AR2_stepAim()
  local cam = Workspace.CurrentCamera
  local c = AR2_CFG.aim
+ local dt = AR2_aimDt(os.clock())
  local mousePos = AR2_realMouse()
  AR2_aim.aiming = c.on and AR2_heldKey(c.key)
  if AR2_fovCircle then
@@ -6693,18 +6996,86 @@ function AR2_stepAim()
  AR2_fovCircle.Color = AR2_aim.aiming and Color3.fromRGB(255,80,90) or Color3.fromRGB(255,200,40)
  end
  end
+ if c.flick then pcall(AR2_stepFlick, cam, mousePos) end
  if not AR2_aim.aiming then AR2_aim.target = nil return end
- local entity, part = AR2_getTarget(mousePos)
+ local entity, part = AR2_getTarget(mousePos, AR2_aim.target and AR2_aim.target.model)
  AR2_aim.target = entity
  if not part then return end
- local screenPos = cam:WorldToViewportPoint(part.Position)
- local delta = Vector2.new(screenPos.X, screenPos.Y) - mousePos
- local smooth = AR2_safeClamp(c.smooth / 100, 0.01, 1)
+ local aimPos = AR2_aimPointFor(cam, entity, part)
+ local sp = cam:WorldToViewportPoint(aimPos)
+ local delta = Vector2.new(sp.X, sp.Y) - mousePos
+ local sm = AR2_safeClamp(tonumber(c.smooth) or 8, 1, 60)
+ local factor = AR2_safeClamp(1 - math.exp(-dt * (60 / sm)), 0.01, 1)
+ local mx, my = delta.X * factor, delta.Y * factor
+ if c.humanize then
+ local dist = delta.Magnitude
+ if c.humanEase and dist < 60 then
+ mx, my = mx * AR2_safeClamp(dist / 60, 0.3, 1), my * AR2_safeClamp(dist / 60, 0.3, 1)
+ end
+ local j = AR2_safeClamp(tonumber(c.humanJitter) or 0, 0, 12)
+ if j > 0 then
+ mx = mx + (math.random() * 2 - 1) * j
+ my = my + (math.random() * 2 - 1) * j
+ end
+ my = my * 0.9
+ end
  if AR2_mousemoverel and AR2_CAP.mousemoverel then
- pcall(AR2_mousemoverel, delta.X * smooth, delta.Y * smooth)
+ pcall(AR2_mousemoverel, mx, my)
  else
- local desired = CFrame.new(cam.CFrame.Position, part.Position)
- cam.CFrame = cam.CFrame:Lerp(desired, smooth)
+ cam.CFrame = cam.CFrame:Lerp(CFrame.new(cam.CFrame.Position, aimPos), factor)
+ end
+end
+AR2_flickDown = false
+function AR2_doFlick(cam, mousePos)
+ local c = AR2_CFG.aim
+ local best, bestPart, bestDist = nil, nil, (tonumber(c.flickFov) or 150)
+ local pool = {}
+ if c.players then for _, e in ipairs(AR2_api.players()) do pool[#pool+1] = e end end
+ if c.zombies then for _, e in ipairs(AR2_api.zombies()) do pool[#pool+1] = e end end
+ for _, entity in ipairs(pool) do
+ if entity.distance <= c.maxDist then
+ local part = AR2_aimPartOf(entity, c.part)
+ if part then
+ local sp, on = cam:WorldToViewportPoint(part.Position)
+ if on and sp.Z > 0 then
+ local flat = (mousePos - Vector2.new(sp.X, sp.Y)).Magnitude
+ if flat < bestDist and (not c.wallCheck or AR2_isVisible(entity.model, part)) then
+ best, bestPart, bestDist = entity, part, flat
+ end
+ end
+ end
+ end
+ end
+ if not bestPart then return end
+ local aimPos = AR2_aimPointFor(cam, best, bestPart)
+ local sp = cam:WorldToViewportPoint(aimPos)
+ local delta = Vector2.new(sp.X, sp.Y) - mousePos
+ if AR2_mousemoverel and AR2_CAP.mousemoverel then
+ pcall(AR2_mousemoverel, delta.X, delta.Y)
+ else
+ cam.CFrame = CFrame.new(cam.CFrame.Position, aimPos)
+ end
+ if c.flickFire then
+ task.spawn(function()
+ pcall(function()
+ AR2_VIM:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+ task.wait(0.012)
+ AR2_VIM:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+ end)
+ end)
+ end
+ if c.flickReturn and AR2_mousemoverel and AR2_CAP.mousemoverel then
+ task.delay(0.04, function() pcall(AR2_mousemoverel, -delta.X, -delta.Y) end)
+ end
+end
+function AR2_stepFlick(cam, mousePos)
+ local c = AR2_CFG.aim
+ local held = AR2_heldKey(c.flickKey or "E")
+ if held and not AR2_flickDown then
+ AR2_flickDown = true
+ pcall(AR2_doFlick, cam, mousePos)
+ elseif not held then
+ AR2_flickDown = false
  end
 end
 function AR2_aim.start()
@@ -7266,7 +7637,7 @@ function AR2_magicTarget()
  local angle = math.deg(math.acos(
  AR2_safeClamp(aimDir:Dot(to.Unit), -1, 1)))
  if angle <= bestScore then
- if not c.visCheck or AR2_isVisible(entity.model, part) then
+ if not c.visCheck or AR2_isVisibleResolve(entity.model, part, c.resolveAngles) then
  best, bestPart, bestScore = entity, part, angle
  end
  end
@@ -8171,6 +8542,11 @@ function AR2_warnFrozenItemData(fc)
  print("[ORIGIN] ItemData is table.freeze'd; FireConfig writes are no-ops.")
 end
 AR2_stForced        = nil
+AR2_STSHIFT_CAP     = 0.03
+AR2_stLastServed    = nil
+function AR2_stShiftCap()
+ return AR2_safeClamp(tonumber(AR2_CFG.weapon.seedWindowMs) or 10, 2, 30) / 1000
+end
 AR2_stHookInstalled = false
 function AR2_installServerTimeHook()
  if AR2_stHookInstalled then return true end
@@ -8183,6 +8559,10 @@ function AR2_installServerTimeHook()
  if AR2_stForced ~= nil and self == AR2_Workspace
  and (AR2_rageShotActive or not checkcaller()) then
  if getnamecallmethod() == "GetServerTimeNow" then
+ local real = old(self, ...)
+ if type(real) == "number" and AR2_stForced < real - AR2_stShiftCap() then
+ return real - AR2_stShiftCap()
+ end
  return AR2_stForced
  end
  end
@@ -8217,7 +8597,7 @@ function AR2_seedPick(angle, baseSt)
  local base  = math.floor(baseSt * 10000)
  local floorInt = math.floor((AR2_seedLastSent or 0) * 10000)
  local bestSeed, bestPitch
- for i = 0, tries do
+ for i = 0, math.min(tries, math.floor(AR2_stShiftCap() * 10000)) do
  local seedInt = base - i
  if seedInt <= floorInt then break end
  local rng = Random.new(seedInt)
@@ -8289,9 +8669,11 @@ function AR2_acVitals()
  out[k] = { cur = cur, max = 100 }
  elseif type(cur) == "table" then
  local a, b
- pcall(function() a = cur.Value end)
+ pcall(function() if type(cur.Get) == "function" then a = cur:Get() end end)
+ if type(a) ~= "number" then pcall(function() a = cur.Value end) end
  if type(a) ~= "number" then pcall(function() a = cur.Current end) end
- pcall(function() b = cur.Max end)
+ pcall(function() if type(cur.GetMax) == "function" then b = cur:GetMax() end end)
+ if type(b) ~= "number" then pcall(function() b = cur.Max end) end
  if type(a) == "number" then
  out[k] = { cur = a, max = (type(b) == "number" and b > 0) and b or 100 }
  end
@@ -8392,24 +8774,6 @@ function AR2_invItemsOfType(want, needUse, anyContainer)
 end
 AR2_meleeEquipBusy = false
 AR2_meleeEquipWhy  = "idle"
-function AR2_meleeEnsureEquipped(gc)
- if not (AR2_CFG.melee and AR2_CFG.melee.autoEquip) then return true end
- local eq, ty
- pcall(function() eq = gc.EquippedItem end)
- if eq ~= nil then pcall(function() ty = eq.Type end) end
- if ty == "Melee" then return true end
- if AR2_meleeEquipBusy then return false end
- local list = AR2_invItemsOfType({ Melee = true })
- if #list == 0 then AR2_meleeEquipWhy = "no melee in inventory" return false end
- AR2_meleeEquipBusy = true
- task.spawn(function()
- local okEq = pcall(function() gc:Equip(list[1]) end)
- AR2_meleeEquipWhy = okEq and "equipping melee" or "melee equip refused"
- task.wait(0.4)
- AR2_meleeEquipBusy = false
- end)
- return false
-end
 function AR2_acStep()
  local m = AR2_CFG.misc
  if not (m and m.autoConsume) then return end
@@ -8484,6 +8848,49 @@ function AR2_acRun(gc, item, pick, pickPct)
  if AR2_acBusy then return end
  AR2_acBusy = true
  task.spawn(function()
+ if AR2_CFG.misc.silentConsume then
+ local snm = "item"
+ pcall(function() snm = tostring(item.DisplayName or item.Name or "item") end)
+ local sid
+ pcall(function() sid = item.Id end)
+ if sid == nil then AR2_acWhy = "silent: no item id" AR2_acBusy = false return end
+ local vb
+ pcall(function() local v = AR2_acVitals() if type(v)=="table" and v[pick] then vb = v[pick].cur end end)
+ local prev
+ pcall(function() prev = gc.EquippedItem end)
+ local net = AR2_resolveNetTable()
+ local pid
+ pcall(function() if prev then pid = (AR2_weaponIdOf and AR2_weaponIdOf(prev)) or prev.Id end end)
+ if net then
+ if pid then pcall(net.Send, net, "Character Unequip Item", tostring(pid)) end
+ pcall(net.Send, net, "Character Equip Item", tostring(sid))
+ end
+ task.wait(0.2)
+ pcall(function() gc.UsingItem = true end)
+ pcall(net.Send, net, "Register Consume", tostring(sid))
+ AR2_acWhy = ("silent consume %s -- registered"):format(snm)
+ task.wait(AR2_safeClamp(tonumber(AR2_CFG.misc.silentConsumeWait) or 3, 0.5, 8))
+ pcall(function() gc.UsingItem = false end)
+ pcall(function()
+ if net then
+ pcall(net.Send, net, "Character Unequip Item", tostring(sid))
+ if pid then pcall(net.Send, net, "Character Equip Item", tostring(pid)) end
+ end
+ end)
+ local va
+ pcall(function() local v = AR2_acVitals() if type(v)=="table" and v[pick] then va = v[pick].cur end end)
+ if type(va)=="number" and type(vb)=="number" and va > vb + 0.01 then
+ AR2_acCount = (AR2_acCount or 0) + 1
+ AR2_acWhy = ("silent-consumed %s for %s (%d%%)"):format(snm, pick, math.floor(pickPct))
+ if AR2_CFG.misc.acNotify then AR2_notify("silent consume: " .. AR2_acWhy, 4) end
+ else
+ AR2_acSkip[item]  = os.clock() + 20
+ AR2_acBackoff     = os.clock() + 8
+ AR2_acWhy = ("silent %s did nothing -- server may need the real consume; turn Silent off"):format(snm)
+ end
+ AR2_acBusy = false
+ return
+ end
  local nm = "item"
  pcall(function() nm = tostring(item.DisplayName or item.Name or "item") end)
  local okState, why = AR2_acCanEquip(gc)
@@ -9596,7 +10003,9 @@ function AR2_fitCatalogue()
  table.insert(list, 1, "Keep")
  end
  AR2_fitCatCount = found
- if found > 0 then AR2_fitCat = cat end
+ local clothing = #(cat.Top or {}) + #(cat.Bottom or {})
+ AR2_fitCatTries = (AR2_fitCatTries or 0) + 1
+ if found > 0 and (clothing > 4 or AR2_fitCatTries >= 6) then AR2_fitCat = cat end
  return cat
 end
 function AR2_fitCopy(t)
@@ -9860,7 +10269,10 @@ function AR2_fitItemData()
  local ok, d = pcall(function()
  return AR2_frameworkMod(30).Configs.ItemData
  end)
- return ok and d or nil
+ if ok and type(d) == "table" then return d end
+ local m = AR2_getItemDataModule and AR2_getItemDataModule()
+ if type(m) == "table" then return m end
+ return nil
 end
 AR2_fitSlotMap = AR2_fitSlotMap or {}
 function AR2_fitSlotOf(name)
@@ -11176,7 +11588,7 @@ function AR2_setWallbangAll(on)
  if w.wallbang then
  AR2_wbModeNote = AR2_setWallbangFilter(true) and "filter on" or "filter FAILED"
  else
- if not w.hbeOn then pcall(AR2_setWallbangFilter, false) end
+ if not (w.hbeOn or w.thickHead or w.backtrack) then pcall(AR2_setWallbangFilter, false) end
  pcall(AR2_releaseIgnoredParts)
  pcall(AR2_clearFakeWindows)
  AR2_wbModeNote = "off"
@@ -11362,7 +11774,7 @@ function AR2_setWallbangFilter(on)
  local rageWindow = AR2_CFG.rageBot.on
  and (AR2_rageFireMark or 0) > 0
  and (os.clock() - AR2_rageFireMark) <= 0.40
- local hbeWindow = AR2_CFG.weapon.hbeOn
+ local hbeWindow = (AR2_CFG.weapon.hbeOn or AR2_CFG.weapon.thickHead or AR2_CFG.weapon.backtrack)
  and AR2_hbeCandPart ~= nil
  and os.clock() < (AR2_bulletCastUntil or 0)
  if not (AR2_CFG.weapon.wallbangFilter or rageWindow or hbeWindow) then
@@ -11444,7 +11856,7 @@ function AR2_setWallbangFilter(on)
  if not ok then
  return AR2_wallbangFilterOrig(self, ray, filter, a3, a4)
  end
- if r1 == nil and AR2_CFG.weapon.hbeOn and AR2_hbeCandPart
+ if r1 == nil and (AR2_CFG.weapon.hbeOn or AR2_CFG.weapon.thickHead or AR2_CFG.weapon.backtrack or AR2_CFG.weapon.spreadComp) and AR2_hbeCandPart
  and os.clock() < (AR2_bulletCastUntil or 0) then
  local p = AR2_hbeCandPoint
  if p and (p - ray.Origin).Magnitude <= ray.Direction.Magnitude then
@@ -11865,15 +12277,19 @@ function AR2_originInSolid(pos)
  if typeof(pos) ~= "Vector3" then return true end
  local bad = false
  pcall(function()
- local params = OverlapParams.new()
+ local params = AR2_oisParams
+ if params == nil then
+ params = OverlapParams.new()
  params.FilterType = Enum.RaycastFilterType.Exclude
+ params.MaxParts = 1
+ AR2_oisParams = params
+ end
  local ignore = {}
  local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
  if ch then ignore[#ignore + 1] = ch end
  if AR2_Characters then ignore[#ignore + 1] = AR2_Characters end
  if AR2_hbeFolder then ignore[#ignore + 1] = AR2_hbeFolder end
  params.FilterDescendantsInstances = ignore
- params.MaxParts = 1
  local hits = AR2_Workspace:GetPartBoundsInRadius(pos, 0.6, params)
  if hits and #hits > 0 then bad = true end
  end)
@@ -11899,14 +12315,16 @@ function AR2_wallIsPenetrable(inst)
 end
 function AR2_pathWallCount(from, to, targetModel, allowPenetrable)
  local n = 0
- local params = RaycastParams.new()
+ local params = AR2_pwcParams
+ if params == nil then
+ params = RaycastParams.new()
  params.FilterType = Enum.RaycastFilterType.Exclude
  params.IgnoreWater = true
+ AR2_pwcParams = params
+ end
  local ignore = {}
- pcall(function()
  local ch = AR2_LocalPlayer and AR2_LocalPlayer.Character
  if ch then ignore[#ignore + 1] = ch end
- end)
  if typeof(targetModel) == "Instance" then ignore[#ignore + 1] = targetModel end
  params.FilterDescendantsInstances = ignore
  for _ = 1, 8 do
@@ -11992,7 +12410,6 @@ function AR2_ocNoteHit()
  local e = AR2_ocBuckets[AR2_ocLastBucket]
  if e then e.hits = e.hits + 1 end
 end
-AR2_vehPushLast = 0
 AR2_magConn   = nil
 AR2_magRuns   = 0
 AR2_magPicked = 0
@@ -12174,11 +12591,19 @@ end
 function AR2_magsRunOnce()
  if not AR2_magsNeedFilling() then AR2_magLast = "all mags full" return false end
  local picked = AR2_magsGrabNearby()
- local a = AR2_netSend("Collect ammo")
- local b = AR2_netSend("Spread ammo")
+ local sent = 0
+ local id
+ pcall(function()
+ local cur = AR2_getEquippedInner()
+ if cur ~= nil then id = rawget(cur, "Id") or cur.Id end
+ end)
+ if id ~= nil then
+ if AR2_netSend("FillAmmo", id) then sent = sent + 1 end
+ if AR2_netSend("CollectAmmo", id) then sent = sent + 1 end
+ end
  AR2_magRuns = AR2_magRuns + 1
- AR2_magLast = ("collect=%s spread=%s, %d picked up")
- :format(tostring(a), tostring(b), picked)
+ AR2_magLast = ("sent %d ammo actions (id=%s), %d picked up")
+ :format(sent, tostring(id), picked)
  return true
 end
 function AR2_setAutoMags(on)
@@ -12226,35 +12651,6 @@ function AR2_vehicleModel()
  end)
  return out
 end
-function AR2_vehicleOriginPush(origin, direction)
- if AR2_CFG.weapon.vehPush == false then return origin end
- if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" then return origin end
- if direction.Magnitude < 1e-5 then return origin end
- local okV = false
- pcall(function() okV = AR2_inVehicle() == true end)
- if not okV then return origin end
- local out = origin
- pcall(function()
- local pad = AR2_safeClamp(tonumber(AR2_CFG.weapon.vehPushPad) or 2, 0, 20)
- local cap = AR2_safeClamp(tonumber(AR2_CFG.weapon.vehPushMax) or 40, 2, 120)
- local dist = pad + 4
- local model = AR2_vehicleModel()
- if model then
- local cf, size = model:GetBoundingBox()
- local rel = cf:VectorToObjectSpace(direction.Unit)
- local ext = size * 0.5
- local reach = math.abs(rel.X) * ext.X
- + math.abs(rel.Y) * ext.Y
- + math.abs(rel.Z) * ext.Z
- local fromCentre = (origin - cf.Position):Dot(direction.Unit)
- dist = math.max(reach - fromCentre, 0) + pad
- end
- dist = AR2_safeClamp(dist, 0, cap)
- AR2_vehPushLast = dist
- out = origin + direction.Unit * dist
- end)
- return out
-end
 function AR2_clampOriginToBody(pos)
  if typeof(pos) ~= "Vector3" then return pos end
  local body = AR2_originBodyPos()
@@ -12262,14 +12658,6 @@ function AR2_clampOriginToBody(pos)
  local off = pos - body
  local d = off.Magnitude
  local max = math.max(1, tonumber(AR2_ORIGIN_BODY_MAX) or 8)
- do
- local inVeh = false
- pcall(function() inVeh = AR2_inVehicle() == true end)
- if inVeh and AR2_CFG.weapon.vehPush ~= false then
- max = math.max(max, AR2_safeClamp(
- tonumber(AR2_CFG.weapon.vehPushMax) or 40, 2, 120))
- end
- end
  if AR2_CFG.weapon.originCal then
  max = AR2_safeClamp(tonumber(AR2_CFG.weapon.originCalMax) or 32, 1, 120)
  end
@@ -12281,19 +12669,24 @@ function AR2_clampOriginToBody(pos)
  AR2_originClampCount = (AR2_originClampCount or 0) + 1
  return body + off.Unit * max
 end
-function AR2_originReport()
- return table.concat({
- ("origin adjust: %d shifts, last %0.1f studs"):format(
- AR2_originShiftsNormal or 0, tonumber(AR2_lastOriginAdj) or 0),
- ("walls on the last shot: %s before, %s after"):format(
- tostring(AR2_lastPathBase), tostring(AR2_lastPathWalls)),
- ("skipped: %d no target, %d nothing gained, %d would start in solid"):format(
- AR2_originSkipNoTarget or 0, AR2_originSkipNoGain or 0,
- AR2_originRejects or 0),
- ("reach %s studs, body cap %s"):format(
- tostring(AR2_CFG.rageBot.originReach), tostring(AR2_ORIGIN_BODY_MAX)),
- "no target means the ragebot had not resolved one when the shot went",
- }, "\n")
+AR2_ocCache = AR2_ocCache or {}
+function AR2_findLegalOriginCached(origin, dest, targetModel)
+ local c = AR2_ocCache
+ local now = os.clock()
+ if c.at and (now - c.at) < 0.12
+ and typeof(c.origin) == "Vector3" and typeof(origin) == "Vector3"
+ and (c.origin - origin).Magnitude < 2
+ and typeof(c.dest) == "Vector3" and typeof(dest) == "Vector3"
+ and (c.dest - dest).Magnitude < 3 then
+ AR2_lastPathBase  = c.base
+ AR2_lastPathWalls = c.walls
+ return c.newOrigin, c.moved, nil
+ end
+ local newOrigin, moved = AR2_findLegalOrigin(origin, dest, targetModel)
+ c.at, c.origin, c.dest = now, origin, dest
+ c.newOrigin, c.moved = newOrigin, moved
+ c.base, c.walls = AR2_lastPathBase, AR2_lastPathWalls
+ return newOrigin, moved, nil
 end
 function AR2_findLegalOrigin(origin, dest, targetModel)
  local nudge = AR2_safeClamp(tonumber(AR2_CFG.rageBot.originNudge) or 3, 0, 20)
@@ -12301,20 +12694,14 @@ function AR2_findLegalOrigin(origin, dest, targetModel)
  if toT.Magnitude < 0.001 then return origin, 0, nil end
  local fwd = toT.Unit
  local function finish(pos)
- local p = AR2_clampOriginToBody(pos + fwd * nudge)
  pos = AR2_clampOriginToBody(pos)
- if not AR2_originInSolid(p)
- and AR2_pathWallCount(p, dest, targetModel, true)
- <= AR2_pathWallCount(pos, dest, targetModel, true) then
- return p
- end
  if AR2_originInSolid(pos) and not AR2_originInSolid(origin) then
  AR2_originRejects = (AR2_originRejects or 0) + 1
  return origin
  end
  return pos
  end
- AR2_ocRayBudget = 60
+ AR2_ocRayBudget = 30
  local baseWalls = AR2_pathWallCount(origin, dest, targetModel, true)
  AR2_lastPathWalls = baseWalls
  AR2_lastPathBase  = baseWalls
@@ -12329,7 +12716,7 @@ function AR2_findLegalOrigin(origin, dest, targetModel)
  local up = Vector3.new(0, 1, 0)
  local dirs = {
  up, (up + right).Unit, (up - right).Unit,
- right, -right, fwd, (up + fwd).Unit, -up,
+ right, -right, -up,
  }
  local bestPos, bestWalls, bestMove = origin, baseWalls, 0
  AR2_originRejects = AR2_originRejects or 0
@@ -13317,7 +13704,7 @@ function AR2_doInventoryFire(part)
  if AR2_CFG.rageBot.originAdjust ~= false then
  local rawOrigin = origin
  local newOrigin, moved, stillBlocked =
- AR2_findLegalOrigin(origin, dest, part and part.Parent or nil)
+ AR2_findLegalOriginCached(origin, dest, part and part.Parent or nil)
  blocker = nil
  local _ = stillBlocked
  local gained = (tonumber(AR2_lastPathBase) or 0)
@@ -13559,7 +13946,7 @@ function AR2_rageBotStep()
  if (nowV - (AR2_rageLockVisAt or 0)) >= (1 / AR2_safeClamp(
  tonumber(AR2_CFG.rageBot.scanHz) or 30, 5, 120)) then
  AR2_rageLockVisAt = nowV
- AR2_rageLockVis = AR2_espVisible(lockModel, lp)
+ AR2_rageLockVis = AR2_isVisibleResolve(lockModel, lp, AR2_CFG.rageBot.resolveAngles)
  end
  if AR2_rageLockVis == false then keep = false end
  end
@@ -13814,6 +14201,28 @@ if AR2_success and AR2_Bullets and AR2_Bullets.Fire then
  end
  return base
  end
+AR2_vehFireKeys = { "IsVehicleDriver", "Sitting", "Mounting", "Dismounting" }
+function AR2_vehFireSpoofBegin()
+ if not (AR2_CFG.weapon.vehicleEquip and AR2_vehEquipInVeh) then return nil end
+ local ch = AR2_vehEquipPC and AR2_vehEquipPC.Character
+ if type(ch) ~= "table" then return nil end
+ local saved = { ch = ch, vals = {} }
+ pcall(function()
+ if isreadonly and isreadonly(ch) and AR2_CAP.setreadonly then
+ saved.ro = true setreadonly(ch, false)
+ end
+ end)
+ for _, k in ipairs(AR2_vehFireKeys) do
+ saved.vals[k] = rawget(ch, k)
+ pcall(function() rawset(ch, k, false) end)
+ end
+ return saved
+end
+function AR2_vehFireSpoofEnd(saved)
+ if type(saved) ~= "table" then return end
+ for k, v in pairs(saved.vals) do pcall(function() rawset(saved.ch, k, v) end) end
+ if saved.ro and AR2_CAP.setreadonly then pcall(setreadonly, saved.ch, true) end
+end
 local AR2_newBulletsFire = function(self, playerController, weaponInstance, weaponData, origin, direction, shotId)
  if typeof(origin) ~= "Vector3" or typeof(direction) ~= "Vector3" then
  AR2_warnOnce("nilfire",
@@ -14012,7 +14421,7 @@ local AR2_newBulletsFire = function(self, playerController, weaponInstance, weap
  pcall(function()
  local m   = rpart.Parent
  local hrp = m:FindFirstChild("HumanoidRootPart") or m.PrimaryPart
- if hrp then tvel = hrp.AssemblyLinearVelocity end
+ if hrp then tvel = AR2_bestVelocity(m, hrp) end
  end)
  local okp, aimPoint = pcall(AR2_predict, rpart, origin, tvel)
  if okp and typeof(aimPoint) == "Vector3" then
@@ -14025,7 +14434,7 @@ local AR2_newBulletsFire = function(self, playerController, weaponInstance, weap
  end
  end
  end
- if AR2_CFG.rageBot.originAdjustShots == true and typeof(origin) == "Vector3" then
+ if AR2_CFG.rageBot.originAdjust ~= false and typeof(origin) == "Vector3" then
  pcall(function()
  local dest, mdl
  if AR2_rageShotPart and AR2_rageShotPart.Parent then
@@ -14040,7 +14449,7 @@ local AR2_newBulletsFire = function(self, playerController, weaponInstance, weap
  AR2_originSkipNoTarget = (AR2_originSkipNoTarget or 0) + 1
  return
  end
- local newOrigin, moved = AR2_findLegalOrigin(origin, dest, mdl)
+ local newOrigin, moved = AR2_findLegalOriginCached(origin, dest, mdl)
  local gained = (tonumber(AR2_lastPathBase) or 0)
  - (tonumber(AR2_lastPathWalls) or 0)
  if typeof(newOrigin) ~= "Vector3" or moved <= 0.01 then return end
@@ -14062,26 +14471,39 @@ local AR2_newBulletsFire = function(self, playerController, weaponInstance, weap
  end)
  end
  local usedComp = false
- if AR2_CFG.weapon.spreadComp and AR2_installServerTimeHook() then
+ if AR2_CFG.weapon.spreadComp then
+ pcall(AR2_installServerTimeHook) 
  pcall(function()
  local st    = AR2_Workspace:GetServerTimeNow()
  local angle = AR2_resolveSpreadAngle(
  playerController, weaponInstance, weaponData)
  local coneKnown = (type(angle) == "number" and angle > 1e-9)
- if AR2_seedAllowed(coneKnown) then
- local picked = AR2_seedPick(coneKnown and angle or 1, st)
+ local tightSeed = false
+ if false and tostring(AR2_CFG.weapon.seedMode or "Always") ~= "Off" then
+ local picked, pitch = AR2_seedPick(coneKnown and angle or 1, st)
  if picked then
  st = picked
- if not coneKnown then AR2_stForced = st end
+ AR2_stForced = st
+ local tgt = (coneKnown and angle or 1)
+ * AR2_safeClamp(tonumber(AR2_CFG.weapon.seedQuality) or 0.01, 0.0005, 0.2)
+ if type(pitch) == "number" and pitch <= tgt then tightSeed = true end
  end
  end
  AR2_seedLastShot = os.clock()
  if st > (AR2_seedLastSent or 0) then AR2_seedLastSent = st end
- if coneKnown then
+ if coneKnown and not tightSeed then
  local want        = direction
  AR2_aimDirDesired = direction
  AR2_aimDirAt      = os.clock()
- direction = AR2_spreadCompensate(direction, angle, st, 1)
+ do
+ local resDeg = AR2_safeClamp(tonumber(AR2_CFG.weapon.spreadResidual) or 0, 0, 8)
+ if resDeg > 0 then
+ local rr = math.rad(resDeg) * (0.35 + 0.65 * math.random())
+ local ry = (math.random() * 2 - 1) * math.pi
+ want = (CFrame.new(Vector3.new(), want) * (CFrame.Angles(0, 0, ry) * CFrame.Angles(rr, 0, 0))).LookVector
+ end
+ end
+ direction = AR2_spreadCompensate(want, angle, st, 1)
  AR2_stForced = st
  usedComp = true
  AR2_spreadCompHits = (AR2_spreadCompHits or 0) + 1
@@ -14089,7 +14511,7 @@ local AR2_newBulletsFire = function(self, playerController, weaponInstance, weap
  AR2_rageCompShots = (AR2_rageCompShots or 0) + 1
  end
  AR2_spreadSelfTest(direction, want, angle, st)
- else
+ elseif not coneKnown then
  if false and AR2_CAP.setupvalue and AR2_spreadAngleOrigFn then
  local okZero = AR2_setUpval(AR2_SLOT_ANGLE, AR2_spreadZeroFn, "spread zero")
  if okZero then
@@ -14143,15 +14565,56 @@ local AR2_newBulletsFire = function(self, playerController, weaponInstance, weap
  end
  AR2_bulletCastUntil = os.clock() + 1.5
  AR2_hbeCandPart, AR2_hbeCandPoint = nil, nil
- if AR2_CFG.weapon.hbeOn then
+ if AR2_CFG.weapon.hbeOn or AR2_CFG.weapon.thickHead or AR2_CFG.weapon.spreadComp or AR2_CFG.weapon.backtrack then
  pcall(function()
- local radius = AR2_safeClamp(tonumber(AR2_CFG.weapon.hbeSize) or 4, 0.1, 12)
- local pt, po = AR2_thickFindTarget(origin, direction, 3000, radius)
+ local pt, po
+ if typeof(aimPart) == "Instance" and aimPart.Parent then
+ pt = aimPart
+ if AR2_lastAimPos and (os.clock() - (AR2_lastAimAt or 0)) < 0.2 then
+ po = AR2_lastAimPos
+ else
+ po = aimPart.Position
+ end
+ elseif AR2_rageShotPart and AR2_rageShotPart.Parent then
+ pt, po = AR2_rageShotPart, AR2_rageShotPart.Position
+ else
+ local radius = AR2_safeClamp(tonumber(AR2_CFG.weapon.hbeSize) or 4, 1, 12)
+ if AR2_CFG.weapon.thickHead then
+ radius = math.max(radius, AR2_safeClamp(tonumber(AR2_CFG.weapon.thickHeadRadius) or 6, 0.1, 12))
+ end
+ pt, po = AR2_thickFindTarget(origin, direction, 3000, radius)
+ end
  AR2_hbeCandPart, AR2_hbeCandPoint = pt, po
  end)
  end
+ if AR2_CFG.weapon.backtrack then
+ pcall(function()
+ local mdl = (aimPart and aimPart.Parent)
+ or (AR2_rageShotPart and AR2_rageShotPart.Parent)
+ if typeof(mdl) ~= "Instance" or not mdl.Parent then return end
+ local off = math.min(AR2_safeClamp(tonumber(AR2_CFG.weapon.backtrackMs) or 20, 0, 60) / 1000, AR2_stShiftCap())
+ if off <= 0 then return end
+ local bestSnap = AR2_btBestAlong(mdl, origin, direction, off)
+ local pastPos = bestSnap and bestSnap.p
+ if typeof(pastPos) ~= "Vector3" then pastPos = AR2_btLookup(mdl, off) end
+ if typeof(pastPos) ~= "Vector3" then return end
+ local head = mdl:FindFirstChild("Head")
+ local nowPos = head and head.Position
+ local minMove = AR2_safeClamp(tonumber(AR2_CFG.weapon.backtrackMin) or 3, 0, 30)
+ if typeof(nowPos) == "Vector3" and (nowPos - pastPos).Magnitude < minMove then return end
+ direction = (pastPos - origin).Unit
+ AR2_stForced = (bestSnap and bestSnap.t) or (AR2_Workspace:GetServerTimeNow() - off)
+ if head then AR2_hbeCandPart = head end
+ AR2_hbeCandPoint    = pastPos
+ AR2_bulletCastUntil = os.clock() + 1.5
+ AR2_btShots   = (AR2_btShots or 0) + 1
+ AR2_btLastOff = off
+ end)
+ end
+ local vehSpoof = AR2_vehFireSpoofBegin()
  local fireOk, fireRes = pcall(AR2_originalFireFunction,
  self, playerController, weaponInstance, weaponData, origin, direction, shotId)
+ AR2_vehFireSpoofEnd(vehSpoof)
  AR2_fireDidRun = true
  if AR2_spreadAngleOrigFn and AR2_CAP.setupvalue then
  AR2_setUpval(AR2_SLOT_ANGLE, AR2_spreadAngleOrigFn, "cone restore")
@@ -14165,7 +14628,6 @@ local AR2_newBulletsFire = function(self, playerController, weaponInstance, weap
  error(fireRes, 0)
  end
  local result = fireRes
- origin = AR2_vehicleOriginPush(origin, direction)
  do
  local body = AR2_originBodyPos()
  if body and typeof(origin) == "Vector3" then
@@ -14263,12 +14725,19 @@ function AR2_hbeAddVisual(character)
  if not realHead then return end
  local charRoot = character:FindFirstChild("HumanoidRootPart") or realHead
  if (charRoot.Position - AR2_localPosition()).Magnitude > 2000 then return end
- local v = Instance.new("Part")
- v.Name         = "HeadHitbox"
- v.Size         = Vector3.new(
- AR2_CFG.weapon.hbeSize,
- AR2_CFG.weapon.hbeSize,
- AR2_CFG.weapon.hbeSize)
+ local v
+ pcall(function() v = realHead:Clone() end)
+ if typeof(v) ~= "Instance" then v = Instance.new("Part") end
+ for _, d in ipairs(v:GetChildren()) do
+ if not (d:IsA("SpecialMesh") or d:IsA("DataModelMesh")) then pcall(function() d:Destroy() end) end
+ end
+ v.Name = "HeadHitbox"
+ pcall(function()
+ local base = realHead.Size
+ pcall(function() v:SetAttribute("ar2_hbe_base", base) end)
+ local biggest = math.max(base.X, base.Y, base.Z, 0.1)
+ v.Size = base * ((AR2_CFG.weapon.hbeSize or 4) / biggest)
+ end)
  AR2_hbeStyle(v)
  v.CanCollide   = false
  v.CanTouch     = false
@@ -14331,10 +14800,13 @@ end
 function AR2_hbeUpdateSizes()
  for _, v in pairs(AR2_hbeVisuals) do
  if v and v.Parent then
- v.Size = Vector3.new(
- AR2_CFG.weapon.hbeSize,
- AR2_CFG.weapon.hbeSize,
- AR2_CFG.weapon.hbeSize)
+ local base = v:GetAttribute("ar2_hbe_base")
+ if typeof(base) == "Vector3" then
+ local biggest = math.max(base.X, base.Y, base.Z, 0.1)
+ v.Size = base * ((AR2_CFG.weapon.hbeSize or 4) / biggest)
+ else
+ v.Size = Vector3.new(AR2_CFG.weapon.hbeSize, AR2_CFG.weapon.hbeSize, AR2_CFG.weapon.hbeSize)
+ end
  AR2_hbeStyle(v)
  end
  end
@@ -14363,9 +14835,92 @@ function AR2_hbeSetEnabled(enabled)
  pcall(AR2_setWallbangFilter, true)
  end
  AR2_hbeScan()
+ pcall(AR2_hbeRestyleAll)
+ task.delay(0.15, function() pcall(AR2_hbeRestyleAll) end)
  else
  AR2_hbeRemoveAll()
- if not AR2_CFG.weapon.wallbang then
+ if not (AR2_CFG.weapon.wallbang or AR2_CFG.weapon.thickHead or AR2_CFG.weapon.backtrack) then
+ pcall(AR2_setWallbangFilter, false)
+ end
+ end
+end
+function AR2_thickHeadSetEnabled(enabled)
+ AR2_CFG.weapon.thickHead = enabled and true or false
+ if enabled then
+ pcall(AR2_setWallbangFilter, true)
+ else
+ if not (AR2_CFG.weapon.hbeOn or AR2_CFG.weapon.wallbang or AR2_CFG.weapon.backtrack) then
+ pcall(AR2_setWallbangFilter, false)
+ end
+ end
+end
+AR2_btHistory = {}
+AR2_btConn = nil
+function AR2_btRecord()
+ local now = AR2_Workspace:GetServerTimeNow()
+ local function scan(c)
+ if not c then return end
+ for _, m in ipairs(c:GetChildren()) do
+ if m:IsA("Model") and m ~= (AR2_LocalPlayer and AR2_LocalPlayer.Character) then
+ local h = m:FindFirstChild("Head")
+ if h then
+ local buf = AR2_btHistory[m]
+ if not buf then buf = {} AR2_btHistory[m] = buf end
+ buf[#buf + 1] = { t = now, p = h.Position }
+ while buf[1] and (now - buf[1].t) > 0.4 do table.remove(buf, 1) end
+ end
+ end
+ end
+ end
+ pcall(scan, AR2_Workspace:FindFirstChild("Characters"))
+ pcall(scan, AR2_Workspace:FindFirstChild("Zombies"))
+ for m in pairs(AR2_btHistory) do
+ if typeof(m) ~= "Instance" or not m.Parent then AR2_btHistory[m] = nil end
+ end
+end
+function AR2_btLookup(model, off)
+ local buf = AR2_btHistory[model]
+ if not buf or #buf == 0 then return nil end
+ local want = AR2_Workspace:GetServerTimeNow() - off
+ local best, bestd
+ for _, s in ipairs(buf) do
+ local d = s.t - want
+ if d < 0 then d = -d end
+ if not bestd or d < bestd then bestd, best = d, s end
+ end
+ return best and best.p or nil
+end
+function AR2_btBestAlong(model, origin, dir, maxAge)
+ local buf = AR2_btHistory[model]
+ if not buf or #buf == 0 then return nil end
+ if typeof(origin) ~= "Vector3" or typeof(dir) ~= "Vector3" or dir.Magnitude < 1e-6 then return nil end
+ local now = AR2_Workspace:GetServerTimeNow()
+ local u = dir.Unit
+ local best, bestd
+ for _, s in ipairs(buf) do
+ if (now - s.t) <= maxAge then
+ local rel = s.p - origin
+ local along = rel:Dot(u)
+ if along > 0 then
+ local perp = (rel - u * along).Magnitude
+ if not bestd or perp < bestd then bestd, best = perp, s end
+ end
+ end
+ end
+ return best
+end
+function AR2_btSetEnabled(on)
+ AR2_CFG.weapon.backtrack = on and true or false
+ if on then
+ pcall(AR2_installServerTimeHook)
+ pcall(AR2_setWallbangFilter, true)
+ if not AR2_btConn and AR2_RunService then
+ AR2_btConn = AR2_RunService.Heartbeat:Connect(function() pcall(AR2_btRecord) end)
+ end
+ else
+ if AR2_btConn then pcall(function() AR2_btConn:Disconnect() end) AR2_btConn = nil end
+ AR2_btHistory = {}
+ if not (AR2_CFG.weapon.hbeOn or AR2_CFG.weapon.thickHead or AR2_CFG.weapon.wallbang) then
  pcall(AR2_setWallbangFilter, false)
  end
  end
@@ -15525,6 +16080,9 @@ function AR2_mvApplyVault()
  if not cfg then return false end
  AR2_mvSaved = AR2_mvSaved or {}
  local n = 0
+ local cfgRO = false
+ pcall(function() if isreadonly then cfgRO = isreadonly(cfg) and true or false end end)
+ if cfgRO and AR2_CAP.setreadonly then pcall(setreadonly, cfg, false) end
  for k, v in pairs(cfg) do
  if type(v) == "number" then
  local low = string.lower(tostring(k))
@@ -15541,6 +16099,7 @@ function AR2_mvApplyVault()
  end
  end
  end
+ if cfgRO and AR2_CAP.setreadonly then pcall(setreadonly, cfg, true) end
  AR2_mvStat.vaultFields = n
  return true
 end
@@ -19085,6 +19644,13 @@ end
 function AR2_skyboxCheck()
  local want = AR2_skyboxWanted()
  if want == nil then return end
+ pcall(function()
+ for _, child in ipairs(AR2_Lighting:GetChildren()) do
+ if child:IsA("Sky") and child ~= AR2_customSky and not child:GetAttribute("ar2_sky") then
+ pcall(function() child:Destroy() end)
+ end
+ end
+ end)
  local alive = false
  pcall(function()
  alive = AR2_customSky ~= nil and AR2_customSky.Parent ~= nil
@@ -19103,14 +19669,25 @@ function AR2_skyWatchSet(on)
  AR2_skyWatchConn = AR2_RunService.Heartbeat:Connect(AR2_sw(function()
  local now = os.clock()
  if now < nextAt then return end
- nextAt = now + 2
+ nextAt = now + 1
  AR2_skyboxCheck()
  end))
+ if not AR2_skyLightingHooked then
+ AR2_skyLightingHooked = true
  pcall(function()
  AR2_Lighting.ChildRemoved:Connect(AR2_sw(function(child)
- if child == AR2_customSky then task.delay(0.1, AR2_skyboxCheck) end
+ if child == AR2_customSky then task.delay(0.05, AR2_skyboxCheck) end
  end))
  end)
+ pcall(function()
+ AR2_Lighting.ChildAdded:Connect(AR2_sw(function(child)
+ if AR2_skyboxWanted() ~= nil and child:IsA("Sky")
+ and child ~= AR2_customSky and not child:GetAttribute("ar2_sky") then
+ task.defer(AR2_skyboxCheck)
+ end
+ end))
+ end)
+ end
 end
 AR2_cloudsInstance = nil
 AR2_cloudsConn     = nil
@@ -20215,11 +20792,9 @@ function AR2_hasWeaponEquipped()
  end
  local anim = char:FindFirstChild("Animator")
  local eq = anim and anim:FindFirstChild("EquippedItem")
- if eq and eq.Value then return true end
- if char:FindFirstChild("Viewmodel") or char:FindFirstChild("ViewModel") then return true end
- end
- if AR2_Camera:FindFirstChild("Viewmodel") or AR2_Camera:FindFirstChild("ViewModel") then
+ if eq and type(eq.Value) == "string" and eq.Value ~= "" and eq.Value ~= "[]" then
  return true
+ end
  end
  return false
 end
@@ -20915,16 +21490,40 @@ function AR2_wardrobe()
  AR2_wardrobeMod = m
  return m
 end
+AR2_mannequinCache = nil
 function AR2_mannequinSrc()
+ if AR2_mannequinCache and AR2_mannequinCache.Parent then return AR2_mannequinCache end
  local a = AR2_ReplicatedStorage:FindFirstChild("Assets")
- return a and a:FindFirstChild("Mannequin")
+ if not a then return nil end
+ local m = a:FindFirstChild("Mannequin")
+ if m == nil then
+ for _, d in ipairs(a:GetDescendants()) do
+ if d:IsA("Model") and d:FindFirstChildOfClass("Humanoid") then m = d break end
+ end
+ end
+ AR2_mannequinCache = m
+ return m
+end
+function AR2_clothingTemplateId(name, slot)
+ local src = AR2_browserSource("cos", name)
+ if src == nil then return nil end
+ local want = (slot == "Top") and "Shirt" or "Pants"
+ local prop = (slot == "Top") and "ShirtTemplate" or "PantsTemplate"
+ local inst
+ if src:IsA(want) then inst = src
+ else pcall(function() inst = src:FindFirstChildWhichIsA(want, true) end) end
+ if inst == nil then return nil end
+ local id
+ pcall(function() id = inst[prop] end)
+ if type(id) == "string" and id ~= "" then return id end
+ return nil
 end
 function AR2_clothingPreview(vp, name, slot)
  if slot ~= "Top" and slot ~= "Bottom" then return false end
  local man = AR2_mannequinSrc()
  local W = AR2_wardrobe()
- if man == nil or type(W) ~= "table" then return false end
  local done = false
+ if man ~= nil and type(W) == "table" then
  pcall(function()
  local c = man:Clone()
  for _, d in ipairs(c:GetDescendants()) do
@@ -20945,7 +21544,56 @@ function AR2_clothingPreview(vp, name, slot)
  AR2_browserSpinAdd(vp, cam, at, ext * 1.4)
  done = true
  end)
+ end
+ if done then return true end
+ local tmpl = AR2_clothingTemplateId(name, slot)
+ if tmpl then
+ pcall(function()
+ local img = Instance.new("ImageLabel")
+ img.Size = UDim2.fromScale(1, 1)
+ img.BackgroundTransparency = 1
+ img.ScaleType = Enum.ScaleType.Fit
+ img.Image = tmpl
+ img.Parent = vp
+ done = true
+ end)
+ end
  return done
+end
+function AR2_cosModelPreview(vp, name)
+ local ok = false
+ pcall(function()
+ local src = AR2_browserSource("cos", name)
+ if src == nil then
+ local a = AR2_ReplicatedStorage:FindFirstChild("Assets")
+ src = a and a:FindFirstChild(name, true)
+ end
+ if src == nil then return end
+ local clone
+ if src:IsA("Model") or src:IsA("BasePart") or src:IsA("Folder") then clone = src:Clone() end
+ if clone == nil then return end
+ for _, d in ipairs(clone:GetDescendants()) do
+ if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then d:Destroy() end
+ end
+ local holder = Instance.new("Model")
+ if clone:IsA("Folder") then
+ for _, ch in ipairs(clone:GetChildren()) do ch.Parent = holder end
+ clone:Destroy()
+ else
+ clone.Parent = holder
+ end
+ holder.Parent = vp
+ local cam = Instance.new("Camera")
+ cam.Parent = vp
+ vp.CurrentCamera = cam
+ local cf, size = holder:GetBoundingBox()
+ local ext = math.max(size.X, size.Y, size.Z)
+ if ext <= 0 then ext = 2 end
+ cam.CFrame = CFrame.new(cf.Position + Vector3.new(0, ext * 0.25, ext * 2.1), cf.Position)
+ AR2_browserSpinAdd(vp, cam, cf.Position, ext * 2.1)
+ ok = true
+ end)
+ return ok
 end
 function AR2_browserTile(parent, name, kind)
  local btn = Instance.new("TextButton")
@@ -20996,6 +21644,9 @@ function AR2_browserTile(parent, name, kind)
  end
  if (slot == "Top" or slot == "Bottom")
  and AR2_clothingPreview(vp, name, slot) then
+ return btn
+ end
+ if slot ~= "Top" and slot ~= "Bottom" and AR2_cosModelPreview(vp, name) then
  return btn
  end
  end
@@ -21332,6 +21983,8 @@ function AR2_registerAllKeybinds()
  AR2_registerKeybind("rageBot",function() AR2_rageBotSetEnabled(not AR2_CFG.rageBot.on) end)
  AR2_registerKeybind("hbe",function() AR2_hbeSetEnabled(not AR2_CFG.weapon.hbeOn) end)
  AR2_registerKeybind("instantReload",function() setInstantReloadEnabled(not AR2_CFG.weapon.instantReload) end)
+ AR2_registerKeybind("killDetectors",function() local v = not AR2_CFG.misc.killDetectors AR2_CFG.misc.killDetectors = v local _, why = AR2_detectorKill(v) AR2_notify("Detectors: " .. tostring(why), 10) end)
+ AR2_registerKeybind("detGuard",function() local v = not AR2_CFG.misc.detGuard AR2_CFG.misc.detGuard = v local _, why = AR2_guardSet(v) AR2_notify("Guard: " .. tostring(why), 10) end)
  AR2_registerKeybind("allFireModes",function() AR2_applyAllFireModes(not AR2_CFG.weapon.allFireModes) end)
  AR2_registerKeybind("wallbang",function() AR2_setWallbangAll(not AR2_CFG.weapon.wallbang) end)
  AR2_registerKeybind("alwaysSuppressed",function() AR2_setAlwaysSuppressed(not AR2_CFG.weapon.alwaysSuppressed) end)
@@ -22116,9 +22769,19 @@ function AR2_panelStep()
  if not folder then return end
  for _, m in ipairs(folder:GetChildren()) do
  if m:IsA("Model") and m ~= AR2_LocalPlayer.Character then
- local r = m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Head")
+ local parts = AR2_parts(m)
+ local r = (parts and (parts.root or parts.torso or parts.head))
+ or m:FindFirstChild("HumanoidRootPart") or m:FindFirstChild("Torso")
+ or m:FindFirstChild("Head")
+ local alive
+ if isZ then
+ local hp = AR2_resolveEntityHP(m)
+ alive = (type(hp) ~= "number") or hp > 0
+ else
  local h = m:FindFirstChildOfClass("Humanoid")
- if r and h and h.Health > 0 then
+ alive = h ~= nil and h.Health > 0
+ end
+ if r and alive then
  local d = (r.Position - me).Magnitude
  if d <= lim then pool[#pool + 1] = { m = m, d = d, z = isZ, a = r } end
  end
@@ -22142,7 +22805,27 @@ function AR2_panelStep()
  end
  end
  table.sort(pool, function(a, b) return a.d < b.d end)
+ if c.mouseOnly then
+ local cam = AR2_Workspace.CurrentCamera
+ local mx, my = 0, 0
+ pcall(function() local ml = AR2_UserInputService:GetMouseLocation() mx, my = ml.X, ml.Y end)
+ local best, bestd
+ if cam then
+ for _, e in ipairs(pool) do
+ if not e.spec and e.a and e.a.Parent then
+ local sp, on = cam:WorldToViewportPoint(e.a.Position)
+ if on then
+ local dx, dy = sp.X - mx, sp.Y - my
+ local sd = dx * dx + dy * dy
+ if sd <= 48400 and (not bestd or sd < bestd) then bestd, best = sd, e end
+ end
+ end
+ end
+ end
+ if best then want[best.m] = best end
+ else
  for i = 1, math.min(#pool, cap) do want[pool[i].m] = pool[i] end
+ end
  for _, e in ipairs(pool) do
  if e.spec then want[e.m] = e AR2_panelOpen[e.m] = true end
  end
@@ -23587,7 +24270,16 @@ function AR2_uiKillStrayWindows(keep)
 end
 AR2_uiMouseConn = nil
 AR2_uiMouseWas  = false
+AR2_uiIsOpenCache = false
+AR2_uiIsOpenAt = 0
 function AR2_uiIsOpen()
+ local now = os.clock()
+ if (now - (AR2_uiIsOpenAt or 0)) < 0.15 then return AR2_uiIsOpenCache end
+ AR2_uiIsOpenAt = now
+ AR2_uiIsOpenCache = AR2_uiIsOpenRaw()
+ return AR2_uiIsOpenCache
+end
+function AR2_uiIsOpenRaw()
  local open = false
  local hosts = {}
  pcall(function() if typeof(gethui) == "function" then hosts[#hosts+1] = gethui() end end)
@@ -24613,18 +25305,21 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
   return _r
  end
  local combatTab   = win:AddTab({Icon="circle",Name="Combat"})
- local weaponsTab  = win:AddTab({Icon="circle",Name="Weapons"})
- local movementTab = win:AddTab({Icon="circle",Name="Movement"})
- local itemsTab    = win:AddTab({Icon="circle",Name="Items"})
+ local rageTab     = win:AddTab({Icon="circle",Name="Rage"})
+ local weaponsTab  = win:AddTab({Icon="circle",Name="Weapon Mods"})
  local espTab      = win:AddTab({Icon="circle",Name="ESP"})
- local radarTab    = win:AddTab({Icon="circle",Name="Radar"})
+ local radarTab    = win:AddTab({Icon="circle",Name="Radar-Minimap"})
+ local movementTab = win:AddTab({Icon="circle",Name="Movement"})
+ local teleportTab = win:AddTab({Icon="circle",Name="Teleport"})
+ local vehiclesTab = win:AddTab({Icon="circle",Name="Vehicle"})
+ local itemsTab    = win:AddTab({Icon="circle",Name="Items"})
  local visualsTab  = win:AddTab({Icon="circle",Name="Visuals"})
  local worldTab    = win:AddTab({Icon="circle",Name="World"})
- local vehiclesTab = win:AddTab({Icon="circle",Name="Vehicles"})
  local cosmeticsTab = win:AddTab({Icon="circle",Name="Cosmetics"})
+ local cameraTab   = win:AddTab({Icon="circle",Name="Camera"})
  local miscTab     = win:AddTab({Icon="circle",Name="Misc"})
- local settingsTab = win:AddTab({Icon="circle",Name="Settings"})
  local keybindsTab = win:AddTab({Icon="circle",Name="Keybinds"})
+ local settingsTab = win:AddTab({Icon="circle",Name="Settings"})
  local playerSection = espTab:AddSection({Name="Player ESP",Position="left"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("playerSection")
@@ -24632,6 +25327,9 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(playerSection,"Enabled",AR2_CFG.players,"on",function(v) AR2_esp.update() end,"playerESP")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23318: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(playerSection,"Force Render",AR2_CFG.misc,"forceRender",function(v) AR2_setForceRender(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "fr: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(playerSection,"Box",AR2_CFG.players,"box")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23319: " .. tostring(_e) end end
@@ -24644,6 +25342,18 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(playerSection,"Chams",AR2_CFG.players,"chams")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23322: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(playerSection,"Color States (target/vis/hidden)",AR2_CFG.players,"colorStates")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "colorstates: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addColorPicker(playerSection,"  Target Colour",AR2_CFG.players,"colTarget",function() end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "coltarget: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addColorPicker(playerSection,"  Visible Colour",AR2_CFG.players,"colVisible",function() end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "colvis: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addColorPicker(playerSection,"  Hidden Colour",AR2_CFG.players,"colHidden",function() end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "colhid: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(playerSection,"Visibility Check",AR2_CFG.players,"visCheck")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23323: " .. tostring(_e) end end
@@ -24702,6 +25412,9 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  local panelSection = espTab:AddSection({Name="Info Panels",Position="right"})
  AR2_PANEL_SECTION = panelSection
+ do local _ok, _e = pcall(function()
+ addToggle(panelSection,"Panel Near Mouse Only",AR2_CFG.panel,"mouseOnly")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "panelmouse: " .. tostring(_e) end end
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "psec: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(AR2_PANEL_SECTION,"Player Panels",AR2_CFG.panel,"players",function() AR2_panelSet() end)
@@ -25092,6 +25805,8 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  espColor("Corpse",        "corpse")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "c4: " .. tostring(_e) end end
  local aimbotSection = combatTab:AddSection({Name="Aimbot",Position="left"})
+ local silentAimSection = combatTab:AddSection({Name="Silent Aim",Position="left"})
+ local predictSection = combatTab:AddSection({Name="Prediction",Position="mid"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("aimbotSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23661: " .. tostring(_e) end end
@@ -25111,14 +25826,47 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  addToggle(aimbotSection,"Wall Check",AR2_CFG.aim,"wallCheck")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23666: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addToggle(aimbotSection,"Show FOV",AR2_CFG.aim,"showFov")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23667: " .. tostring(_e) end end
- local predictSection = combatTab:AddSection({Name="Prediction",Position="mid"})
- local originSection = combatTab:AddSection({Name="Origin Adjust",Position="right"})
- local silentAimSection = combatTab:AddSection({Name="Silent Aim",Position="left"})
+ addDropdown(aimbotSection,"Aim Key",{"MouseButton2","MouseButton1","E","Q","F","C","V","LeftShift"},AR2_CFG.aim,"key")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimkey: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- AR2_uiMark("silentAimSection")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23669: " .. tostring(_e) end end
+ addToggle(aimbotSection,"Prediction",AR2_CFG.aim,"predict")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimpredict: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(aimbotSection,"Stickiness",AR2_CFG.aim,"stick",1,4,0.1)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimstick: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"Target Players",AR2_CFG.aim,"players")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimplayers: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"Target Zombies",AR2_CFG.aim,"zombies")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimzombies: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"Show FOV Circle",AR2_CFG.aim,"showFov")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimshowfov: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"Realistic Aim",AR2_CFG.aim,"humanize")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimhuman: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(aimbotSection,"  Jitter (px)",AR2_CFG.aim,"humanJitter",0,12,1)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimjitter: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"  Ease In",AR2_CFG.aim,"humanEase")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimease: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"Flickbot",AR2_CFG.aim,"flick",function(v) if v then AR2_aim.start() end end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "aimflick: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addDropdown(aimbotSection,"  Flick Key",{"E","Q","F","C","V","X","R","T","MouseButton3"},AR2_CFG.aim,"flickKey")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "flickkey: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(aimbotSection,"  Flick FOV",AR2_CFG.aim,"flickFov",20,500)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "flickfov: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"  Flick Fire",AR2_CFG.aim,"flickFire")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "flickfire: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(aimbotSection,"  Flick Return",AR2_CFG.aim,"flickReturn")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "flickreturn: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(silentAimSection,"Enabled",AR2_CFG.magicAim,"on",function(v)
  if v and not AR2_reticleOn then
@@ -25154,6 +25902,9 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  addToggle(silentAimSection,"Visible Only",AR2_CFG.magicAim,"visCheck")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23703: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
+ addToggle(silentAimSection,"Resolve Angles (per-bone)",AR2_CFG.magicAim,"resolveAngles")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "saresolve: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
  addToggle(silentAimSection,"Show FOV Circle",AR2_CFG.magicAim,"showFov",function(v) AR2_magicUpdate() end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23704: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
@@ -25165,15 +25916,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(predictSection,"Compensate Drop",AR2_CFG.magicAim,"dropComp")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23707: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- originSection:AddLabel("Shoots from a spot with fewer walls to the target.")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "oalbl: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(originSection,"Enabled",AR2_CFG.rageBot,"originAdjust")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "oen: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(originSection,"Also On Normal Shots",AR2_CFG.rageBot,"originAdjustShots")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "oens: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addSlider(predictSection,"Max Lead Speed",AR2_CFG.magicAim,"maxLeadSpeed",10,400,10)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23712: " .. tostring(_e) end end
@@ -25192,7 +25934,7 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(silentAimSection,"Worldwide / 360",AR2_CFG.magicAim,"ignoreFov",function(v) AR2_toggleWorldwide(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23717: " .. tostring(_e) end end
- local rageBotSection = combatTab:AddSection({Name="Rage Bot",Position="mid"})
+ local rageBotSection = rageTab:AddSection({Name="Rage Bot",Position="left"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("rageBotSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23719: " .. tostring(_e) end end
@@ -25206,8 +25948,8 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  addToggle(rageBotSection,"Visible Only",AR2_CFG.rageBot,"visCheck")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23722: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addToggle(rageBotSection,"Origin Adjust",AR2_CFG.rageBot,"originAdjust")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23723: " .. tostring(_e) end end
+ addToggle(rageBotSection,"Resolve Angles (per-bone)",AR2_CFG.rageBot,"resolveAngles")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "rbresolve: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(rageBotSection,"Shoot From Inventory",AR2_CFG.rageBot,"inventoryShoot",function(v)
  AR2_toggleRageBotInventoryShoot(v)
@@ -25241,7 +25983,20 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  rageBotSection:AddButton({Name="PANIC -- Disable Now (L)",Callback=function() AR2_rageBotPanic() end})
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23734: " .. tostring(_e) end end
- local skySection = combatTab:AddSection({Name="Desync Kill",Position="right"})
+ local originSection = rageTab:AddSection({Name="Origin Adjust",Position="mid"})
+ do local _ok, _e = pcall(function()
+ AR2_uiMark("originSection")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "osec: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ originSection:AddLabel("Shifts your SHOT origin to a server-legal spot so aimbot rounds register through cover. Not a movement or anti-rubberband tool.")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "olbl: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(originSection,"Enabled (rage + normal)",AR2_CFG.rageBot,"originAdjust")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "oadj1: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(originSection,"Reach (studs)",AR2_CFG.rageBot,"originReach",1,10,1)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "oadj3: " .. tostring(_e) end end
+ local skySection = rageTab:AddSection({Name="Desync Kill",Position="right"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("skySection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23736: " .. tostring(_e) end end
@@ -25393,21 +26148,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  function(v) AR2_swimSet(v) end,"swimSpoof")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line swim1: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addSlider(swimSection,"Swim Tag Radius",AR2_CFG.misc,"swimRadius",0,60)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line swim2: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(swimSection,"Swim Tag Cap",AR2_CFG.misc,"swimCap",5,400)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line swim3: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- swimSection:AddButton({Name="Swim Status",Callback=function()
- local out = AR2_CFG.misc.swimSpoof
- and ("swim spoof on - %d parts tagged Swim Surface"):format(AR2_swimCount or 0)
- or "swim spoof off"
- print("[YVL SWIM] " .. out)
- AR2_notify(out, 8)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line swim4: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
  AR2_uiMark("jesusSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23864: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
@@ -25430,7 +26170,7 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  AR2_resetFallState()
  end})
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23873: " .. tostring(_e) end end
- local playerTPSection = movementTab:AddSection({Name="Player TP",Position="right"})
+ local playerTPSection = teleportTab:AddSection({Name="Player TP",Position="left"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("playerTPSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23877: " .. tostring(_e) end end
@@ -25536,7 +26276,7 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  playerTPSection:AddButton({Name="Open Map",Callback=function() AR2_tp.toggleMap(true) end})
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23963: " .. tostring(_e) end end
- local mvSection = itemsTab:AddSection({Name="Vault & Interact",Position="right"})
+ local mvSection = itemsTab:AddSection({Name="Interact",Position="right"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("mvSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23965: " .. tostring(_e) end end
@@ -25549,34 +26289,19 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(mvSection,"Interact Through Walls",AR2_CFG.misc,"interactXray")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23968: " .. tostring(_e) end end
+ local vaultSection = movementTab:AddSection({Name="Vault",Position="right"})
  do local _ok, _e = pcall(function()
- addToggle(mvSection,"Long Vault",AR2_CFG.misc,"vaultFar",function(v)
+ AR2_uiMark("vaultSection")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "vaultsec: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(vaultSection,"Long Vault",AR2_CFG.misc,"vaultFar",function(v)
  pcall(AR2_mvApplyVault)
  end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23969: " .. tostring(_e) end end
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "longvault: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addToggle(mvSection,"Vault Anything",AR2_CFG.misc,"vaultAny")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23972: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(mvSection,"Auto-Open Corpse On Death",AR2_CFG.misc,"corpseAutoOpen",function(v)
- AR2_corpseAutoSet(v)
- end,"corpseAuto")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23973: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(mvSection,"  Corpse Search Window (s)",AR2_CFG.misc,"corpseOpenWindow",1,20,1)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23976: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- mvSection:AddButton({Name="Open My Corpse Now",Callback=function()
- local m = AR2_findMyCorpse()
- if not m then
-  Notif.new({Title="YVL",Content="no corpse of yours found",Duration=4})
-  return
- end
- AR2_corpseOpen(m)
- Notif.new({Title="YVL",Content=tostring(AR2_corpseLastWhy),Duration=6})
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23977: " .. tostring(_e) end end
- local travelSection = movementTab:AddSection({Name="Travel Mode",Position="right"})
+ addToggle(vaultSection,"Vault Anything",AR2_CFG.misc,"vaultAny")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "vaultany: " .. tostring(_e) end end
+ local travelSection = teleportTab:AddSection({Name="Travel Mode",Position="mid"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("travelSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 23987: " .. tostring(_e) end end
@@ -25611,7 +26336,7 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(stunSection,"Anti Fall Stun",AR2_CFG.misc,"antiFallStun",function(v) AR2_setAntiFallStun(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24000: " .. tostring(_e) end end
- local respawnSection = miscTab:AddSection({Name="Death & Respawn",Position="left"})
+ local respawnSection = rageTab:AddSection({Name="Death & Respawn",Position="right"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("respawnSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24002: " .. tostring(_e) end end
@@ -25645,29 +26370,14 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  AR2_uiMark("weaponModsSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24019: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addToggle(weaponModsSection,"Burst Volley",AR2_CFG.weapon,"volley")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24020: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(weaponModsSection,"Burst Gap (% of legal rate)",AR2_CFG.weapon,"volleyGap",60,250)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24021: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
  addToggle(weaponModsSection,"All Fire Modes",AR2_CFG.weapon,"allFireModes",function(v) AR2_applyAllFireModes(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24022: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(weaponModsSection,"Always Suppressed",AR2_CFG.weapon,"alwaysSuppressed",function(v) AR2_setAlwaysSuppressed(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24023: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- weaponModsSection:AddLabel("Spread Comp requires Silent Aim.")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24024: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
  addToggle(weaponModsSection,"Vehicle Equip",AR2_CFG.weapon,"vehicleEquip",function(v) AR2_setVehicleEquip(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24025: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(weaponModsSection,"Instant Reload",AR2_CFG.weapon,"instantReload",function(v) setInstantReloadEnabled(v) end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24026: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(weaponModsSection,"Auto Reload",AR2_CFG.weapon,"autoReload",function(v) AR2_setAutoReload(v) end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24027: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addSlider(weaponModsSection,"Recoil Reduction % (100 = none)",AR2_CFG.weapon,"recoilReduction",0,100,function(v)
  local ok, why = AR2_applyRecoil()
@@ -25675,9 +26385,8 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24028: " .. tostring(_e) end end
  local ballisticsSection = weaponsTab:AddSection({Name="Ballistics",Position="left"})
- local wallbangSection = weaponsTab:AddSection({Name="Wallbang",Position="left"})
+ local wallbangSection = rageTab:AddSection({Name="Wallbang",Position="mid"})
  local ammoSection = weaponsTab:AddSection({Name="Ammo",Position="mid"})
- local adsFeelSection = weaponsTab:AddSection({Name="ADS & Feel",Position="mid"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("bulletSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24033: " .. tostring(_e) end end
@@ -25689,28 +26398,16 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24034: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- ballisticsSection:AddLabel("Cancels the shot cone.")
  addToggle(ballisticsSection,"Spread Compensation",AR2_CFG.weapon,"spreadComp",function(v)
+ if v then pcall(AR2_installServerTimeHook) end
  Notif.new({Title="YVL",Duration=8,Content=v
- and "cancels the cone instead of zeroing it -- needs Silent Aim hooked"
+ and "spread comp ON -- bends onto the target and pins the seed so it registers (silent aim should be on). backtrack is a separate toggle."
  or "spread comp off"})
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "spreadcomp: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(ballisticsSection,"  Match Moving Spread",AR2_CFG.weapon,"spreadExact")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "spreadexact: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- ballisticsSection:AddButton({Name="Spread Comp Status",Callback=function()
- local out = ("source: %s\nlast angle: %s deg\nshots compensated: %d\n"
- .. "moving-spread match: %d used, %d rejected")
- :format(tostring(AR2_spreadAngleSource),
- AR2_spreadAngleLast and ("%.3f"):format(math.deg(AR2_spreadAngleLast)) or "n/a",
- AR2_spreadCompHits or 0, AR2_spreadExactOk or 0, AR2_spreadExactNo or 0)
- print("[YVL SPREAD]\n" .. out)
- pcall(function() setclipboard(out) end)
- AR2_notify(out, 16)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "spreadstatus: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(wallbangSection,"Wallbang",AR2_CFG.weapon,"wallbang",function(v)
  AR2_setWallbangAll(v)
@@ -25726,31 +26423,11 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24048: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addDropdown(ballisticsSection,"  Clean Seed",{"Off","Cone Unknown","First Shot","Always"},
- AR2_CFG.weapon,"seedMode")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "sm: " .. tostring(_e) end end
+ addToggle(ammoSection,"Instant Reload",AR2_CFG.weapon,"instantReload",function(v) setInstantReloadEnabled(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "ir: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addSlider(ballisticsSection,"  \226\148\148 Cold Shot Gap",AR2_CFG.weapon,"seedGap",0.15,5,0.05)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "sg: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(adsFeelSection,"Insta ADS",AR2_CFG.weapon,"instaAds",function() AR2_setWeaponFeel() end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "ia: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(adsFeelSection,"  \226\148\148 ADS Multiplier",AR2_CFG.weapon,"adsMult",1,60,1)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "iam: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(adsFeelSection,"No View Bob",AR2_CFG.weapon,"noBob",function() AR2_setWeaponFeel() end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "nb: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(adsFeelSection,"Force Render",AR2_CFG.misc,"forceRender",function(v) AR2_setForceRender(v) end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "fr: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- adsFeelSection:AddButton({Name="Weapon Feel Status",Callback=function()
- local out = AR2_feelReport()
- print("[YVL FEEL]\n" .. out)
- AR2_notify(out, 12)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "fer: " .. tostring(_e) end end
+ addToggle(ammoSection,"Auto Reload",AR2_CFG.weapon,"autoReload",function(v) AR2_setAutoReload(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "arl: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(ammoSection,"Auto Fill Mags",AR2_CFG.weapon,"autoMags",function(v) AR2_setAutoMags(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "am: " .. tostring(_e) end end
@@ -25770,30 +26447,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  AR2_notify(out, 12)
  end})
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "amrep: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(wallbangSection,"Shoot Past Vehicle",AR2_CFG.weapon,"vehPush")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "vp: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(wallbangSection,"  \226\148\156 Clearance",AR2_CFG.weapon,"vehPushPad",0,20,0.5)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "vpp: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addSlider(wallbangSection,"  \226\148\148 Max Push",AR2_CFG.weapon,"vehPushMax",2,120,2)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "vpm: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- originSection:AddButton({Name="Origin Adjust Status",Callback=function()
- local out = AR2_originReport()
- print("[YVL ORIGIN ADJ]\n" .. out)
- pcall(function() setclipboard(out) end)
- AR2_notify(out, 20)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "oadj: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(wallbangSection,"Hit Vehicles",AR2_CFG.weapon,"hitVehicles",function(v)
- Notif.new({Title="YVL",Duration=6,Content=v
-  and "wallbang and HBE casts will stop on vehicles again"
-  or  "vehicles ignored -- players and zombies only"})
- end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24052: " .. tostring(_e) end end
  local meleeModsSection = weaponsTab:AddSection({Name="Melee",Position="right"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("meleeModsSection")
@@ -25802,8 +26455,15 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  meleeModsSection:AddLabel("Swings the weapon and faces the target.")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24059: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addSlider(meleeModsSection,"Face Early (studs)",AR2_CFG.melee,"faceExtra",0,12,1)
+ addToggle(meleeModsSection,"Face Target (sync look)",AR2_CFG.melee,"faceTarget")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24061: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(meleeModsSection,"Silent (keep gun, no self-anim)",AR2_CFG.melee,"silent",function(v)
+ Notif.new({Title="YVL",Duration=9,Content=v
+ and "silent: forges swing + shove, no knife pulled on YOUR screen and no swing/shove animation -- others still see it and hits land. note: while the aura is on, the server thinks a knife is out, so your GUN shots pause until you turn the aura off"
+ or "silent off: drives the real swing/shove (knife pulled out, local animation plays)"})
+ end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "meleesilent: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addSlider(meleeModsSection,"Shove Extra Reach",AR2_CFG.melee,"shoveExtra",0,8,1)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24062: " .. tostring(_e) end end
@@ -25813,9 +26473,13 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  AR2_meleeBake()
  AR2_setMeleeAura(v)
  if v then
- Notif.new({Title="YVL",Duration=12,
- Content="Drives the game's real swing now. If you still get kicked, "
- .. "turn it off -- the kick is server-side and nothing here blocks it."})
+ Notif.new({Title="YVL",Duration=10,
+ Content="Forges Melee Swing + Hit through the pcall [C] route so the digest "
+ .. "stays clean. Face Target steers your reported look onto the hit ray (one "
+ .. "spring write per swing) so a server ray-check passes -- turn it off for no "
+ .. "body-turn. Spoof Equip tells the server the knife is out (ragebot-style "
+ .. "-- client field + raw equip id, no visible force-swap), so the swing is "
+ .. "not read as a hit from an unequipped weapon. Held until you turn it off."})
  end
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24063: " .. tostring(_e) end end
@@ -25826,14 +26490,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24073: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addDropdown(meleeModsSection,"Melee Method",{"Send Packets","Real Swing"},
- AR2_CFG.melee,"meleeMode")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "mm: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addDropdown(meleeModsSection,"Shove Method",{"Key Press","Direct Send"},
- AR2_CFG.melee,"shoveMode")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "sm: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
  addToggle(meleeModsSection,"  \226\148\148 Report Shoving",AR2_CFG.melee,"shoveFlag")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "sf: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
@@ -25842,15 +26498,37 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(meleeModsSection,"Hit Infected",AR2_CFG.melee,"zombies")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24078: " .. tostring(_e) end end
- local hbeSection = weaponsTab:AddSection({Name="Head Expander",Position="right"})
+ do local _ok, _e = pcall(function()
+ addToggle(meleeModsSection,"Spoof Equip (knife, server-side)",AR2_CFG.melee,"spoofEquip")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "spoofeq: " .. tostring(_e) end end
+ local hbeSection = rageTab:AddSection({Name="Head Expander",Position="left"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("hbeSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24083: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(hbeSection,"Head Expander",AR2_CFG.weapon,"hbeOn",function(v) AR2_hbeSetEnabled(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24084: " .. tostring(_e) end end
+ local btSection = rageTab:AddSection({Name="Backtrack",Position="right"})
  do local _ok, _e = pcall(function()
- addSlider(hbeSection,"Head Size",AR2_CFG.weapon,"hbeSize",1,12,function(v) AR2_hbeUpdateSizes() end)
+ AR2_uiMark("btSection")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "btsec: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ btSection:AddLabel("Rewinds a moving target to where the server last saw them. Experimental -- can cream; keep the window small.")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "btlbl: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(btSection,"Backtrack (experimental, head)",AR2_CFG.weapon,"backtrack",function(v) AR2_btSetEnabled(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "backtrack: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(btSection,"Backtrack ms",AR2_CFG.weapon,"backtrackMs",0,30,function() end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "btms: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(btSection,"Backtrack Min Move",AR2_CFG.weapon,"backtrackMin",0,20,function() end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "btmin: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(btSection,"Seed/BT Window ms",AR2_CFG.weapon,"seedWindowMs",2,30,function() end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "backtrackms: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(hbeSection,"Head Size",AR2_CFG.weapon,"hbeSize",1,10,function(v) AR2_hbeUpdateSizes() end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24085: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addSlider(hbeSection,"Sphere Transparency",AR2_CFG.weapon,"hbeAlpha",0,1,0.05,function()
@@ -25908,28 +26586,9 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  addToggle(hideSection,"Hide Player",AR2_CFG.misc,"hidePlayer",function(v) AR2_toggleHidePlayer(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24112: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- addToggle(hideSection,"Hide Game GUI",AR2_CFG.misc,"hideGameGui",
- function(v) AR2_hideGameGuiSet(v) end,"hideGameGui")
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "hgg: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- addToggle(hideSection,"  \226\148\148 Also Roblox Core UI",AR2_CFG.misc,"hideCoreGui",
- function() if AR2_CFG.misc.hideGameGui then
- AR2_hideGameGuiSet(false) AR2_hideGameGuiSet(true) end end)
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "hcg: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
  addToggle(hideSection,"Hide Game Crosshair",AR2_CFG.misc,"hideGameCross",
  function(v) AR2_hideCrossSet(v) end,"hideGameCross")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "hgc: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- hideSection:AddButton({Name="Hide GUI Status",Callback=function()
- local n = 0 for _ in pairs(AR2_guiHiddenWas) do n = n + 1 end
- local c = AR2_crossCache and #AR2_crossCache or 0
- local out = ("game GUIs hidden: %d\ncrosshair parts found: %d")
- :format(n, c)
- print("[YVL HIDEGUI] " .. out)
- AR2_notify(out, 8)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "hgs: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addToggle(hideSection,"Hide Gun",AR2_CFG.misc,"hideGun",function(v) AR2_toggleHideGun(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24113: " .. tostring(_e) end end
@@ -26097,11 +26756,11 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addSlider(crosshairSection,"Spin Speed (deg/s)",AR2_CFG.crosshair,"spinSpeed",10,720)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24227: " .. tostring(_e) end end
- local camFeelSection = visualsTab:AddSection({Name="Camera Feel",Position="right"})
- local fovSection = visualsTab:AddSection({Name="FOV & Zoom",Position="right"})
- local freecamSection = visualsTab:AddSection({Name="Freecam",Position="right"})
- local spectateSection = visualsTab:AddSection({Name="Spectate",Position="right"})
- local tpAdsSection = visualsTab:AddSection({Name="Third-Person ADS",Position="right"})
+ local camFeelSection = cameraTab:AddSection({Name="Camera Feel",Position="left"})
+ local fovSection = cameraTab:AddSection({Name="FOV & Zoom",Position="left"})
+ local freecamSection = cameraTab:AddSection({Name="Freecam",Position="mid"})
+ local spectateSection = cameraTab:AddSection({Name="Spectate",Position="mid"})
+ local tpAdsSection = cameraTab:AddSection({Name="Third-Person ADS",Position="right"})
  do local _ok, _e = pcall(function()
  addToggle(camFeelSection,"Camera Feel",AR2_CFG.misc,"camFeel",function(v) AR2_camFeelSet(v) end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "feel: " .. tostring(_e) end end
@@ -26153,7 +26812,7 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24241: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  addDropdown(spectateSection,"Spectate Mode",
- {"Camera","Body","Native"},AR2_CFG.misc,"specMode",function()
+ {"Body"},AR2_CFG.misc,"specMode",function()
  if AR2_specOn then AR2_specSet(false) AR2_specSet(true) end
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24241a: " .. tostring(_e) end end
@@ -26343,7 +27002,7 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  Notif.new({Title="YVL",Duration=12,Content=tostring(why)})
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24330: " .. tostring(_e) end end
- local carTPSection = vehiclesTab:AddSection({Name="Vehicle Noclip TP",Position="right"})
+ local carTPSection = teleportTab:AddSection({Name="Vehicle Noclip TP",Position="right"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("carTPSection")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24338: " .. tostring(_e) end end
@@ -26592,6 +27251,21 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  addSlider(moveFxSection,"Duration",AR2_CFG.misc.jumpCircle,"duration",0.5,3,0.1,function(v) AR2_CFG.misc.jumpCircle.duration=v end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24464: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
+ addToggle(moveFxSection,"China Hat",AR2_CFG.misc.chinaHat,"enabled",function(v) AR2_chinaHatSet(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "chinahat tog: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addDropdown(moveFxSection,"China Hat Material",AR2_CHINA_MATS,AR2_CFG.misc.chinaHat,"material",function(v) if AR2_CFG.misc.chinaHat.enabled then pcall(AR2_chinaHatApply) end end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "chinahat mat: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addColorPicker(moveFxSection,"China Hat Color",AR2_CFG.misc.chinaHat,"color",function(v) AR2_CFG.misc.chinaHat.color=v if AR2_CFG.misc.chinaHat.enabled then pcall(AR2_chinaHatApply) end end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "chinahat col: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(moveFxSection,"China Hat Size",AR2_CFG.misc.chinaHat,"size",1,60,0.5,function(v) AR2_CFG.misc.chinaHat.size=v if AR2_CFG.misc.chinaHat.enabled then pcall(AR2_chinaHatApply) end end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "chinahat size: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(moveFxSection,"China Hat Height",AR2_CFG.misc.chinaHat,"height",1,60,0.5,function(v) AR2_CFG.misc.chinaHat.height=v if AR2_CFG.misc.chinaHat.enabled then pcall(AR2_chinaHatApply) end end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "chinahat height: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
  addToggle(extrasSection,"Hit Feed (server damage numbers)",AR2_CFG.misc,"hitFeed",function(v)
  AR2_handlerWatch("Bullet Damage", v)
  end)
@@ -26602,6 +27276,37 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  AR2_notify(tostring(why), 16)
  end})
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "staffscan: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ extrasSection:AddLabel("Anti-cheat detectors -- the stepper that rubberbands you lives here.")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "detlbl: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(extrasSection,"Kill AC Detectors",AR2_CFG.misc,"killDetectors",function(v)
+ local _, why = AR2_detectorKill(v)
+ AR2_notify("Detectors: " .. tostring(why), 12)
+ end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "killdet: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(extrasSection,"Detector Guard (auto-remove)",AR2_CFG.misc,"detGuard",function(v)
+ local _, why = AR2_guardSet(v)
+ AR2_notify("Guard: " .. tostring(why), 10)
+ end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "detguard: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addToggle(extrasSection,"  Guard: Destroy Found",AR2_CFG.misc,"detGuardRemove")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "detguardrm: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ extrasSection:AddButton({Name="Dump Steppers",Callback=function()
+ local rows = AR2_stepperList()
+ local t2 = {}
+ for _, r in ipairs(rows) do
+ t2[#t2 + 1] = ("%s | rate=%s | %s"):format(tostring(r.label), tostring(r.rate), r.enabled and "on" or "off")
+ end
+ local s = (#t2 > 0) and table.concat(t2, "\n") or "no steppers reachable"
+ pcall(function() setclipboard(s) end)
+ print("[YVL STEPPERS]\n" .. s)
+ AR2_notify(("%d steppers -- copied to clipboard"):format(#rows), 12)
+ end})
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "stepdump: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  carActionSection:AddButton({Name="Repair Vehicle",Callback=function()
  local n = AR2_vehicleRepair()
@@ -26622,31 +27327,36 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end})
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "cfgcost: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
- extrasSection:AddButton({Name="ESP Frame Cost",Callback=function()
- local n = math.max(AR2_perfEspN or 0, 1)
- local lines = {
- ("ESP per frame: last %.2f ms, avg %.2f ms, worst %.2f ms")
- :format(AR2_perfEspLast or 0, (AR2_perfEspSum or 0) / n, AR2_perfEspMax or 0),
- }
- local c = AR2_perfEspMaxCounts
- if type(c) == "table" then
- local parts = {}
- for k, v in pairs(c) do parts[#parts + 1] = tostring(k) .. "=" .. tostring(v) end
- table.sort(parts)
- lines[#lines + 1] = "at worst frame: " .. table.concat(parts, " ")
- end
- local sp = AR2_perfSpikes or {}
- lines[#lines + 1] = ("recent frames over 50 ms: %d"):format(#sp)
- for i = math.max(1, #sp - 7), #sp do lines[#lines + 1] = "  " .. tostring(sp[i]) end
- local out = table.concat(lines, "\n")
- print("[YVL PERF]\n" .. out)
- pcall(function() setclipboard(out) end)
- AR2_notify(out:sub(1, 900), 20)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "perf: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
  addToggle(meleeModsSection,"Auto Equip Melee",AR2_CFG.melee,"autoEquip")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "melee autoeq: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ meleeModsSection:AddButton({Name="Dump Melee/Shove API",Callback=function()
+ local L = {}
+ local gc = AR2_resolveGameCharacter()
+ L[#L+1] = "gc type: " .. type(gc)
+ if type(gc) == "table" then
+ for _, k in ipairs({"attemptShove","useEquippedItem","Shove","UseItem","Actions","EquippedItem"}) do
+ local v; pcall(function() v = gc[k] end)
+ L[#L+1] = ("gc.%s = %s"):format(k, type(v))
+ end
+ local acts; pcall(function() acts = gc.Actions end)
+ if type(acts) == "table" then
+ local ks = {}; for k in pairs(acts) do ks[#ks+1] = tostring(k) end
+ L[#L+1] = "Actions: " .. table.concat(ks, ", ")
+ end
+ local eq; pcall(function() eq = gc.EquippedItem end)
+ if type(eq) == "table" then
+ local inner = rawget(eq, "__item") or eq
+ local ks = {}; pcall(function() for k in pairs(inner) do ks[#ks+1] = tostring(k) end end)
+ L[#L+1] = "equipped keys: " .. table.concat(ks, ", ")
+ end
+ end
+ local s = table.concat(L, "\n")
+ pcall(function() setclipboard(s) end)
+ print("[YVL MELEE API]\n" .. s)
+ AR2_notify("melee/shove API -> clipboard + console", 12)
+ end})
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "meleeapi: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
  meleeModsSection:AddButton({Name="Melee Status",Callback=function()
  local mMode = tostring(AR2_CFG.melee.meleeMode or "Send Packets")
@@ -26654,7 +27364,8 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  local out = table.concat({
  ("MELEE AURA   %s"):format(AR2_CFG.melee.meleeAura and "on" or "off"),
  ("  method     %s"):format(mMode),
- ("  targets    %d fanned"):format(AR2_meleeFans or 0),
+ ("  targets    %d in reach (%d fan)"):format(AR2_meleeTgt or 0, AR2_meleeFans or 0),
+ ("  equipped   %s"):format(tostring(AR2_meleeEqTy)),
  ("  sends      %d packet, %d real swing")
  :format(AR2_meleePktSent or 0, AR2_strikeSent or 0),
  ("  last       %s"):format(tostring(AR2_meleeLastErr)),
@@ -26703,6 +27414,13 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "ac toggle: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
+ addToggle(acSec,"  Silent (no equip/animation)",AR2_CFG.misc,"silentConsume",function(v)
+ Notif.new({Title="YVL",Duration=9,Content=v
+ and "silent consume: forges Register Consume -- no item pulled out, no animation on your screen. server applies the heal over the item's normal time. if a heal does nothing, the server needs the real consume -- turn this off."
+ or "silent consume off (normal equip + animation)"})
+ end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "silentconsume: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
  addSlider(acSec,"  Drink Below %",AR2_CFG.misc,"acHydration",0,95,5)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "ac hyd: " .. tostring(_e) end end
  do local _ok, _e = pcall(function()
@@ -26717,6 +27435,33 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  do local _ok, _e = pcall(function()
  addToggle(acSec,"  Notify On Use",AR2_CFG.misc,"acNotify")
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "ac notif: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ acSec:AddButton({Name="Consume Status",Callback=function()
+ local v = AR2_acVitals()
+ local lines = { "AUTO CONSUME",
+ ("  busy=%s  silent=%s"):format(tostring(AR2_acBusy), tostring(AR2_CFG.misc.silentConsume)),
+ ("  why=%s"):format(tostring(AR2_acWhy)) }
+ if type(v) == "table" then
+ for _, k in ipairs(AR2_ACVITALS) do
+ local e = v[k]
+ lines[#lines+1] = e and ("  %s = %.0f / %.0f"):format(k, e.cur, e.max)
+ or ("  %s = <not read>"):format(k)
+ end
+ else
+ lines[#lines+1] = "  vitals = <none> (character not resolved)"
+ end
+ local cons = AR2_acConsumables()
+ lines[#lines+1] = ("  consumables in bag: %d"):format(cons and #cons or 0)
+ if type(AR2_acTrace) == "table" and #AR2_acTrace > 0 then
+ lines[#lines+1] = "  last run:"
+ for _, s in ipairs(AR2_acTrace) do lines[#lines+1] = "    " .. tostring(s) end
+ end
+ local out = table.concat(lines, "\n")
+ print("[YVL CONSUME]\n" .. out)
+ pcall(function() setclipboard(out) end)
+ AR2_notify(out, 16)
+ end})
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "ac status: " .. tostring(_e) end end
  local lootSec = itemsTab:AddSection({Name="Looting",Position="mid"})
  do local _ok, _e = pcall(function()
  AR2_uiMark("lootSec")
@@ -26778,64 +27523,6 @@ AR2_UI_LOGO_URL = (AR2_CFG.ui and AR2_CFG.ui.logoUrl) or "https://raw.githubuser
  AR2_setNoInventoryBlur(v)
  end)
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24599: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- mvSection:AddButton({Name="Max Out Range",Callback=function()
- AR2_CFG.misc.interactRange = 400
- AR2_CFG.misc.interactMult  = 10
- AR2_CFG.misc.vaultMult     = 8
- AR2_CFG.misc.vaultRadius   = 150
- AR2_CFG.misc.interactFar   = true
- AR2_CFG.misc.vaultFar      = true
- AR2_CFG.misc.interactXray  = true
- AR2_CFG.misc.vaultAny      = true
- pcall(AR2_mvApplyVault)
- pcall(function() if AR2_refreshUI then AR2_refreshUI() end end)
- AR2_notify("maxed: interact 400s x10, vault x8 / 150s radius, xray + vault-anything on", 5)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24602: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- mvSection:AddButton({Name="INFINITE RANGE (heavy)",Callback=function()
- AR2_CFG.misc.interactRange = 100000
- AR2_CFG.misc.interactMult  = 10000
- AR2_CFG.misc.vaultMult     = 10000
- AR2_CFG.misc.vaultRadius   = 100000
- AR2_CFG.misc.interactFar   = true
- AR2_CFG.misc.vaultFar      = true
- AR2_CFG.misc.interactXray  = true
- AR2_CFG.misc.vaultAny      = true
- pcall(AR2_mvApplyVault)
- pcall(function() if AR2_refreshUI then AR2_refreshUI() end end)
- Notif.new({Title="YVL",Duration=10,
- Content="Unlimited interact + vault range. This sweeps EVERY "
- .. "interactable on the map each pass, so expect a frame cost on a big "
- .. "map -- use Max Out Range instead if it hurts."})
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24615: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- mvSection:AddButton({Name="Reset To Normal",Callback=function()
- AR2_CFG.misc.interactRange = 120
- AR2_CFG.misc.interactMult  = 1
- AR2_CFG.misc.vaultMult     = 1
- AR2_CFG.misc.vaultRadius   = 40
- AR2_CFG.misc.interactFar   = false
- AR2_CFG.misc.vaultFar      = false
- AR2_CFG.misc.interactXray  = false
- AR2_CFG.misc.vaultAny      = false
- pcall(AR2_mvApplyVault)
- pcall(AR2_mvReleaseAll)
- pcall(function() if AR2_refreshUI then AR2_refreshUI() end end)
- AR2_notify("interact + vault back to the game's normal values", 4)
- end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24633: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- mvSection:AddButton({
- Name = "Release All Tags",
- Callback = function()
- local ok,why = AR2_mvReleaseAll()
- Notif.new({Title="YVL",Content=tostring(why),Duration=4})
- end,
- })
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "line 24647: " .. tostring(_e) end end
 AR2_fcOn       = false
 AR2_fcConn     = nil
 AR2_fcInputs   = nil
@@ -27970,6 +28657,7 @@ function AR2_lootPlan(includeGround)
  end)
  for _, it in ipairs(items) do
  local ok = true
+ if AR2_itemType(it) == "Emote" then ok = false end
  if AR2_CFG.lootFilterOn then
  local ty = AR2_itemType(it)
  if type(ty) == "string" then
@@ -28427,6 +29115,10 @@ function AR2_setbackWatch(on)
  if not rp.Anchored then return end
  if os.clock() - AR2_lastAnchorAt < 0.1 then return end
  warn("[YVL] anticheat setback -- something you have on is being caught")
+ if AR2_CFG.weapon.backtrack then
+ pcall(AR2_btSetEnabled, false)
+ pcall(AR2_notify, "backtrack auto-disabled after a setback", 5)
+ end
  end))
 end
 AR2_fallHoldOn   = false
@@ -28682,7 +29374,75 @@ function AR2_meleeWeaponId()
  if cid ~= nil then id = tostring(cid) end
  end
  end)
+ if id == nil then
+ pcall(function()
+ local list = AR2_invItemsOfType({ Melee = true })
+ local it = list and list[1]
+ if it ~= nil then
+ local cid = rawget(it, "Id"); if cid == nil then cid = it.Id end
+ if cid ~= nil then id = tostring(cid) end
+ end
+ end)
+ end
  return id
+end
+AR2_meleeSpoofedId  = nil
+AR2_meleeSpoofSaved = nil
+AR2_meleeSpoofWhy   = "idle"
+function AR2_meleeSpoofEquip(gc)
+ if AR2_CFG.melee.spoofEquip == false then return true end
+ if type(gc) ~= "table" then return false end
+ local eq, ty
+ pcall(function() eq = gc.EquippedItem end)
+ if eq ~= nil then pcall(function() ty = eq.Type end) end
+ if ty == "Melee" then AR2_meleeSpoofWhy = "real melee already out" return true end
+ if AR2_meleeSpoofedId ~= nil then return true end
+ local list = AR2_invItemsOfType({ Melee = true })
+ local item = list and list[1]
+ if item == nil then AR2_meleeSpoofWhy = "no melee in inventory" return false end
+ local id = AR2_meleeWeaponId()
+ if id == nil then AR2_meleeSpoofWhy = "no melee id" return false end
+ local net = AR2_resolveNetTable()
+ if not net then AR2_meleeSpoofWhy = "no Network" return false end
+ if AR2_meleeSpoofSaved == nil then AR2_meleeSpoofSaved = eq end
+ if AR2_CFG.melee.silent == true then
+ local curId
+ pcall(function()
+ local ce = gc.EquippedItem
+ if ce then curId = (AR2_weaponIdOf and AR2_weaponIdOf(ce)) or ce.Id end
+ end)
+ if curId then pcall(net.Send, net, "Character Unequip Item", tostring(curId)) end
+ pcall(net.Send, net, "Character Equip Item", id)
+ else
+ pcall(function() gc.EquippedItem = item end)
+ pcall(net.Send, net, "Character Equip Item", id)
+ end
+ AR2_meleeSpoofedId = id
+ AR2_meleeSpoofWhy  = "spoof-equipped melee (held)"
+ return true
+end
+function AR2_meleeSpoofUnequip()
+ if AR2_meleeSpoofedId == nil then return end
+ local id = AR2_meleeSpoofedId
+ pcall(function()
+ local net = AR2_resolveNetTable()
+ if net then pcall(net.Send, net, "Character Unequip Item", id) end
+ end)
+ pcall(function()
+ local gc = AR2_resolveGameCharacter()
+ if gc and AR2_meleeSpoofSaved ~= nil then
+ pcall(function() gc.EquippedItem = AR2_meleeSpoofSaved end)
+ local net = AR2_resolveNetTable()
+ local sid = AR2_weaponIdOf and AR2_weaponIdOf(AR2_meleeSpoofSaved)
+ if sid == nil and type(AR2_meleeSpoofSaved) == "table" then
+ sid = AR2_meleeSpoofSaved.Id or AR2_meleeSpoofSaved.ID or AR2_meleeSpoofSaved.Guid
+ end
+ if net and sid then pcall(net.Send, net, "Character Equip Item", tostring(sid)) end
+ end
+ end)
+ AR2_meleeSpoofedId  = nil
+ AR2_meleeSpoofSaved = nil
+ AR2_meleeSpoofWhy   = "unequipped (aura off)"
 end
 function AR2_meleeSendPackets(best, handPos, aim, reach)
  local sent = false
@@ -28696,6 +29456,13 @@ function AR2_meleeSendPackets(best, handPos, aim, reach)
  end
  local st = AR2_Workspace:GetServerTimeNow()
  AR2_meleeCombo = (AR2_meleeCombo % 3) + 1
+ local inner = AR2_getEquippedInner()
+ if type(inner) == "table" then
+ pcall(function() inner.AttackId = st end)
+ pcall(function() inner.ComboIndex = AR2_meleeCombo end)
+ pcall(function() inner.DamageEnabled = true end)
+ pcall(function() inner.Attacking = true end)
+ end
  local swing = AR2_packetEncode("MeleeSwing", {
  AttackId = st, WeaponId = id, ComboIndex = AR2_meleeCombo,
  })
@@ -28710,9 +29477,9 @@ function AR2_meleeSendPackets(best, handPos, aim, reach)
  local hit = AR2_packetEncode("MeleeHit", {
  WeaponId = id, AttackId = st,
  RayOrigin = handPos, RayDirection = aim.Unit * reach,
- ComboIndex = AR2_meleeCombo, Material = best.Material,
+ Position = best.Position,
  })
- if hit ~= nil then AR2_netSend("Melee Hit Register", hit) end
+ if hit ~= nil then AR2_netSend("Melee Hit Register", hit, best) end
  end)
  AR2_meleePktSent = (AR2_meleePktSent or 0) + 1
  AR2_meleeLastErr = "sent Melee Swing + Hit Register"
@@ -28730,8 +29497,10 @@ function AR2_meleeStrikeOnce()
  local reach = AR2_CFG.melee.overReach
  and math.max(AR2_meleeReach(), tonumber(AR2_CFG.melee.auraRange) or 6)
  or AR2_MELEE_REACH
+ local tlist = AR2_meleeTargets(handPos, reach + 4, 8)
+ AR2_meleeTgt = #tlist
  local best, bestD = nil, math.huge
- for _, t in ipairs(AR2_meleeTargets(handPos, reach + 4, 8)) do
+ for _, t in ipairs(tlist) do
  local model = t.part.Parent
  if model then
  for _, bp in ipairs(model:GetChildren()) do
@@ -28749,35 +29518,45 @@ function AR2_meleeStrikeOnce()
  local hp  = best.Position
  local aim = hp - handPos
  if aim.Magnitude < 0.05 then return false end
- if not AR2_meleeEnsureEquipped(gc) then
- AR2_meleeLastErr = "equipping melee first"
- return false
- end
- if tostring(AR2_CFG.melee.meleeMode or "Send Packets") == "Send Packets" then
- return AR2_meleeSendPackets(best, handPos, aim, reach)
- end
- local wrapper
- pcall(function() wrapper = gc.EquippedItem end)
- if type(wrapper) ~= "table" then
- AR2_meleeLastErr = "no equipped item wrapper to swing"
- return false
- end
- local onUse
+ if AR2_CFG.melee.faceTarget ~= false then
  pcall(function()
- if type(wrapper.OnUse) == "function" then onUse = wrapper.OnUse end
+ local sp = rawget(gc, "LookDirectionSpring")
+ if sp and type(sp.SetGoal) == "function" then sp:SetGoal(aim.Unit) end
  end)
- if type(onUse) ~= "function" then
- AR2_meleeLastErr = "equipped item has no OnUse method"
- return false
  end
- local ok, err = pcall(onUse, wrapper, gc)
- if ok then
- AR2_strikeSent = AR2_strikeSent + 1
- AR2_meleeLastErr = "swung via the game's own OnUse (wrapper self)"
- else
- AR2_meleeLastErr = "OnUse threw: " .. tostring(err):sub(1, 140)
+ local pchar, eqTy
+ pcall(function() pchar = AR2_frameworkMod(30).Classes.Players.get().Character end)
+ if pchar then
+ pcall(function()
+ local it = pchar.EquippedItem
+ if it then eqTy = it.Type or (it.ItemData and it.ItemData.Type) end
+ end)
  end
- return ok
+ AR2_meleeEqTy = eqTy
+ local acts = pchar and rawget(pchar, "Actions")
+ if acts == nil and pchar then pcall(function() acts = pchar.Actions end) end
+ if AR2_CFG.melee.silent ~= true and eqTy == "Melee" and type(acts) == "table" and type(acts.UseItem) == "function" then
+ pcall(function()
+ local flat = Vector3.new(hp.X - rp.Position.X, 0, hp.Z - rp.Position.Z)
+ if flat.Magnitude > 0.05 then rp.CFrame = CFrame.new(rp.Position, rp.Position + flat.Unit) end
+ end)
+ pcall(function() acts.UseItem(pchar, "Begin") end)
+ task.delay(0.02, function() pcall(function() acts.UseItem(pchar, "End") end) end)
+ if AR2_CFG.melee.hideSwing ~= false then
+ local gap = AR2_safeClamp(tonumber(AR2_MELEE_SWING_LAG) or 0.08, 0.02, 0.5) + 0.04
+ task.delay(gap, function()
+ pcall(function()
+ local anim = rawget(gc, "Animator")
+ if anim and type(anim.RunAction) == "function" then anim:RunAction("Cancel Melee Animation") end
+ end)
+ end)
+ end
+ AR2_meleePktSent = (AR2_meleePktSent or 0) + 1
+ AR2_meleeLastErr = "swung via game UseItem (real, knife out)"
+ return true
+ end
+ AR2_meleeSpoofEquip(gc)
+ return AR2_meleeSendPackets(best, handPos, aim, reach)
 end
 function AR2_rearmHandlers()
  local n = 0
@@ -28838,6 +29617,28 @@ function AR2_shoveSendDirect(gc, rp, tp)
  AR2_shoveSent  = AR2_shoveSent + 1
  AR2_shoveFired = AR2_shoveFired + 1
  AR2_shoveWhy   = ("direct send #%d"):format(AR2_shoveSent)
+ pcall(function()
+  local rc = AR2_raycastingLib
+  if rc and type(rc.BlockCastWithIgnoreList) == "function" then
+   local d = dir.Unit
+   local ign = rp
+   if type(gc) == "table" then
+    local gi = rawget(gc, "Instance")
+    if typeof(gi) == "Instance" then ign = gi end
+   end
+   local hit = rc:BlockCastWithIgnoreList(CFrame.new(origin, origin + d), d * 4,
+    Vector3.new(1.600000023841858, 0.5, 0.30000001192092896),
+    { ign }, rc.BulletCastLightFilter)
+   if hit then
+    local mat
+    if type(rc.GetHitMaterialType) == "function" then mat = rc:GetHitMaterialType(hit) end
+    if mat ~= nil then
+     local mblob = AR2_packetEncode("MeleeShove", { Direction = d, Material = mat })
+     if mblob ~= nil then AR2_netSend("Melee Shove", mblob, hit) end
+    end
+   end
+  end
+ end)
  sent = 1
  end)
  return sent
@@ -28919,30 +29720,18 @@ function AR2_meleeShoveAura()
  AR2_shoveWhy = "game refuses while " .. blocked
  return 0
  end
- if tostring(AR2_CFG.melee.shoveMode or "Key Press") == "Direct Send" then
- return AR2_shoveSendDirect(gc, rp, tp)
+ local acts = rawget(gc, "Actions"); if acts == nil then pcall(function() acts = gc.Actions end) end
+ local did = false
+ if AR2_CFG.melee.silent ~= true and type(acts) == "table" and type(acts.Shove) == "function" then
+ did = pcall(function() acts.Shove(gc, "Begin", false) end)
+ task.delay(0.03, function() pcall(function() acts.Shove(gc, "End", false) end) end)
  end
- local hadRun = rawget(gc, "RunningInput") == true
- if hadRun then pcall(function() gc.RunningInput = false end) end
- local key = AR2_findShoveKey()
- if typeof(key) ~= "EnumItem" then
- if hadRun then pcall(function() gc.RunningInput = true end) end
- AR2_shoveWhy = "could not resolve the Shove keybind -- set it in game first"
- return 0
- end
- local ok = pcall(function()
- AR2_VIM:SendKeyEvent(true, key, false, game)
- task.wait(0.03)
- AR2_VIM:SendKeyEvent(false, key, false, game)
- end)
- if hadRun then pcall(function() gc.RunningInput = true end) end
- if not ok then AR2_shoveWhy = "VirtualInputManager refused" return 0 end
- local took = false
- pcall(function() took = rawget(gc, "Shoving") == true end)
- AR2_shoveTook = took
- AR2_shoveFired = AR2_shoveFired + 1
- AR2_shoveWhy = ("pressed %s -- game accepted=%s"):format(tostring(key), tostring(took))
+ if did then
+ AR2_shoveFired = (AR2_shoveFired or 0) + 1
+ AR2_shoveWhy = "shoved via Actions.Shove (real)"
  return 1
+ end
+ return AR2_shoveSendDirect(gc, rp, tp)
 end
 AR2_meleeWatch = {
  ["Melee Swing"]        = true,
@@ -28986,8 +29775,8 @@ function AR2_meleeFaceSet(on)
  pcall(function() AR2_meleeFaceConn:Disconnect() end)
  AR2_meleeFaceConn = nil
  end
- AR2_meleeFaceWhy = on and "armed" or "off"
- if not on then return end
+ AR2_meleeFaceWhy = on and "per-swing (spring)" or "off"
+ do return end
  AR2_meleeFaceConn = AR2_RunService.RenderStepped:Connect(function()
  local m = AR2_CFG.melee
  if not (m and m.meleeAura) then return end
@@ -29024,12 +29813,37 @@ function AR2_meleeFaceSet(on)
  end)
 end
 AR2_meleeDriveConn = AR2_meleeDriveConn or nil
+AR2_meleeLookConn  = AR2_meleeLookConn or nil
+function AR2_meleeLookSteer(on)
+ if AR2_meleeLookConn then pcall(function() AR2_meleeLookConn:Disconnect() end) AR2_meleeLookConn = nil end
+ if not on then return end
+ AR2_meleeLookConn = AR2_RunService.Heartbeat:Connect(AR2_sw(function()
+ local m = AR2_CFG.melee
+ if not (m and m.silent and (m.meleeAura or m.strike)) then return end
+ local gc = AR2_resolveGameCharacter()
+ if type(gc) ~= "table" then return end
+ local rp = rawget(gc, "RootPart")
+ if typeof(rp) ~= "Instance" then return end
+ local origin = rp.Position + Vector3.new(0, 1.5, 0)
+ local list = AR2_meleeTargets(origin, AR2_meleeReach() + 4, 1)
+ local t = list and list[1]
+ local tp = t and t.part and t.part.Position
+ if typeof(tp) ~= "Vector3" then return end
+ local dir = tp - origin
+ if dir.Magnitude < 1e-3 then return end
+ pcall(function()
+ local sp = rawget(gc, "LookDirectionSpring")
+ if sp and type(sp.SetGoal) == "function" then sp:SetGoal(dir.Unit) end
+ end)
+ end))
+end
 function AR2_meleeDriveSet(on)
  if AR2_meleeDriveConn then
  pcall(function() AR2_meleeDriveConn:Disconnect() end)
  AR2_meleeDriveConn = nil
  end
- if not on then return end
+ pcall(AR2_meleeLookSteer, false) 
+ if not on then pcall(AR2_meleeSpoofUnequip) return end
  local nextAt = 0
  AR2_meleeDriveConn = AR2_RunService.Heartbeat:Connect(function()
  local m = AR2_CFG.melee
@@ -29065,7 +29879,14 @@ function AR2_meleeDriveSet(on)
  end
  AR2_meleeBlock = nil
  AR2_meleeRan = (AR2_meleeRan or 0) + 1
- if m.strike or m.meleeAura then pcall(AR2_meleeStrikeOnce) end
+ if m.strike or m.meleeAura then
+ pcall(AR2_meleeStrikeOnce)
+ AR2_meleeDriveN = (AR2_meleeDriveN or 0) + 1
+ if AR2_meleeDriveN >= (tonumber(m.comboMax) or 3) then
+ AR2_meleeDriveN = 0
+ nextAt = math.max(nextAt, now + AR2_safeClamp(tonumber(m.comboReset) or 0.5, 0.1, 2))
+ end
+ end
  if m.shoveAura then pcall(AR2_meleeShoveAura) end
  pcall(AR2_meleeReleaseEquip)
  end)
@@ -29602,6 +30423,13 @@ function AR2_reticleInstall()
  AR2_reticleStat.err = "GetFirearmTargetInfo missing"
  return false
  end
+ local gg = (type(getgenv) == "function" and getgenv()) or _G
+ gg.AR2_RETICLE_OURS = gg.AR2_RETICLE_OURS or {}
+ if gg.AR2_RETICLE_OURS[orig] then
+ orig = gg.AR2_RETICLE_REAL or orig
+ else
+ gg.AR2_RETICLE_REAL = orig
+ end
  AR2_reticleOrigFn = orig
  local repl = function(selfR, char, cam, equipModel, flag)
  local origin, dir, blocked = AR2_reticleOrigFn(selfR, char, cam, equipModel, flag)
@@ -29630,6 +30458,7 @@ function AR2_reticleInstall()
  return origin, dir, blocked
  end
  AR2_reticleOurs[repl] = true
+ gg.AR2_RETICLE_OURS[repl] = true
  local ok = pcall(function() R.GetFirearmTargetInfo = repl end)
  if not ok and type(setreadonly) == "function" then
  pcall(setreadonly, R, false)
@@ -29653,8 +30482,11 @@ task.spawn(function()
  local cur
  pcall(function() cur = R.GetFirearmTargetInfo end)
  if cur == AR2_reticleRepl then return end
- if type(cur) == "function" and not AR2_reticleOurs[cur] then
+ local gg = (type(getgenv) == "function" and getgenv()) or _G
+ local ours = AR2_reticleOurs[cur] or (gg.AR2_RETICLE_OURS and gg.AR2_RETICLE_OURS[cur])
+ if type(cur) == "function" and not ours then
  AR2_reticleOrigFn = cur
+ gg.AR2_RETICLE_REAL = cur
  end
  AR2_reticleOn = false
  if AR2_reticleInstall() then
@@ -29849,12 +30681,25 @@ function AR2_nadeCamStart()
 end
 AR2_nadeEspTexts = {}
 AR2_nadeLive     = {}
+AR2_nadeDeployed = {}
 AR2_nadeFxAdd, AR2_nadeFxDel = nil, nil
+AR2_nadeDepAdd, AR2_nadeDepDel = nil, nil
 function AR2_nadeIsThrown(m)
  return typeof(m) == "Instance" and m:IsA("Model")
  and tostring(m.Name):sub(1, 7) == "Thrown "
 end
 function AR2_nadeWatchEffects()
+ if not AR2_nadeDepAdd then
+ pcall(function()
+ for _, m in ipairs(AR2_CollectionService:GetTagged("Entity Deployable")) do
+ AR2_nadeDeployed[m] = true
+ end
+ AR2_nadeDepAdd = AR2_CollectionService:GetInstanceAddedSignal("Entity Deployable")
+ :Connect(AR2_sw(function(m) AR2_nadeDeployed[m] = true end))
+ AR2_nadeDepDel = AR2_CollectionService:GetInstanceRemovedSignal("Entity Deployable")
+ :Connect(AR2_sw(function(m) AR2_nadeDeployed[m] = nil end))
+ end)
+ end
  if AR2_nadeFxAdd then return true end
  local fx = AR2_Workspace:FindFirstChild("Effects")
  if not fx then return false end
@@ -29875,6 +30720,10 @@ function AR2_nadeUnwatchEffects()
  if AR2_nadeFxDel then pcall(function() AR2_nadeFxDel:Disconnect() end) end
  AR2_nadeFxAdd, AR2_nadeFxDel = nil, nil
  table.clear(AR2_nadeLive)
+ if AR2_nadeDepAdd then pcall(function() AR2_nadeDepAdd:Disconnect() end) end
+ if AR2_nadeDepDel then pcall(function() AR2_nadeDepDel:Disconnect() end) end
+ AR2_nadeDepAdd, AR2_nadeDepDel = nil, nil
+ table.clear(AR2_nadeDeployed)
 end
 function AR2_nadeEspHideAll()
  for _, t in ipairs(AR2_nadeEspTexts) do pcall(function() t.Visible = false end) end
@@ -29906,6 +30755,35 @@ function AR2_nadeEspStep()
  end)
  t.Color = Color3.fromRGB(255, 90, 90)
  t.Text = ("%s  fuse %s"):format(item, fuse)
+ t.Position = Vector2.new(sp.X, sp.Y)
+ t.Visible = true
+ end
+ end
+ end
+ end
+ local me = AR2_localPosition()
+ for m in pairs(AR2_nadeDeployed) do
+ if typeof(m) ~= "Instance" or not m.Parent then
+ AR2_nadeDeployed[m] = nil
+ else
+ local pp = m.PrimaryPart
+ or (m:IsA("Model") and m:FindFirstChildWhichIsA("BasePart"))
+ or (m:IsA("BasePart") and m) or nil
+ if pp then
+ local sp, vis = cam:WorldToViewportPoint(pp.Position)
+ if vis then
+ n = n + 1
+ local t = AR2_nadeEspTexts[n]
+ if not t then
+ t = Drawing.new("Text")
+ t.Size, t.Center, t.Outline = 14, true, true
+ AR2_nadeEspTexts[n] = t
+ end
+ local nm = tostring(m.Name):gsub("^Deployed ", ""):gsub("^Placed ", "")
+ local dist = (typeof(me) == "Vector3")
+ and ("  %dm"):format(math.floor((pp.Position - me).Magnitude)) or ""
+ t.Color = Color3.fromRGB(255, 170, 40)
+ t.Text = ("%s%s"):format(nm, dist)
  t.Position = Vector2.new(sp.X, sp.Y)
  t.Visible = true
  end
@@ -31953,7 +32831,7 @@ end
  Duration=4})
  end,
  })
- local personalSection = visualsTab:AddSection({Name="Personal Chams",Position="left"})
+ local personalSection = cosmeticsTab:AddSection({Name="Personal Chams",Position="right"})
  AR2_uiMark("personalSection")
  addToggle(personalSection,"Character Appearance",AR2_CFG.misc,"personalCharOn",
  function(v) AR2_setPersonalCharacter(v,AR2_CFG.misc.personalCharMode,AR2_CFG.misc.personalCharHue,AR2_CFG.misc.personalCharGray,AR2_CFG.misc.personalCharMaterial,AR2_CFG.misc.personalCharRainbow) end)
@@ -31980,6 +32858,18 @@ end
  addToggle(personalSection,"Gun Rainbow",AR2_CFG.misc,"personalGunRainbow",
  function(v) if AR2_CFG.misc.personalGunOn then AR2_setPersonalGun(true,AR2_CFG.misc.personalGunMode,AR2_CFG.misc.personalGunHue,AR2_CFG.misc.personalGunGray,AR2_CFG.misc.personalGunMaterial,v) end end)
  local killfeedSection = cosmeticsTab:AddSection({Name="Killfeed Name",Position="right"})
+ local emoteSection = cosmeticsTab:AddSection({Name="Emotes",Position="right"})
+ do local _ok, _e = pcall(function()
+ emoteSection:AddLabel("Client-side only -- you see the dance, "
+ .. "it overrides the game's own animation.")
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "emlbl: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addDropdown(emoteSection,"Emote",{"Off","Crab Rave","Aura Farm"},
+ AR2_CFG.misc,"emote",function(v) AR2_emoteSet(v) end)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "emtog: " .. tostring(_e) end end
+ do local _ok, _e = pcall(function()
+ addSlider(emoteSection,"Speed",AR2_CFG.misc,"emoteSpeed",2,30)
+ end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "emspd: " .. tostring(_e) end end
  AR2_uiMark("killfeedSection")
  addToggle(killfeedSection,"Spoof My Name",AR2_CFG.misc,"killfeedSpoof",function(v)
  AR2_setNameSpoof(v)
@@ -31991,6 +32881,11 @@ end
  if v == "" then v = "YVL" end
  AR2_CFG.misc.killfeedName = v
  AR2_notify(("killfeed name set to %s"):format(v), 5)
+ end})
+ killfeedSection:AddButton({Name="Apply Name To Everything",Callback=function()
+ AR2_CFG.misc.killfeedSpoof = true
+ pcall(AR2_setNameSpoof, true)
+ AR2_notify("re-applying killfeed name across the UI", 4)
  end})
  local lightingSection = worldTab:AddSection({Name="Lighting",Position="left"})
  AR2_uiMark("lightingSection")
@@ -32023,6 +32918,7 @@ end
  addToggle(lightingSection,"Remove Sun Rays",AR2_CFG.visuals,"removeSunRays",
  function(v) AR2_setRemoveSunRays(v) end)
  local cloudSection = worldTab:AddSection({Name="Clouds",Position="right"})
+ local worldPerfSection = worldTab:AddSection({Name="Performance",Position="right"})
  AR2_uiMark("cloudSection")
  addToggle(cloudSection,"Enable Clouds",AR2_CFG.visuals,"cloudsEnabled",
  function(v)
@@ -32093,14 +32989,9 @@ end
  end)
  addSlider(eventEspSection,"Max Distance",AR2_CFG.visuals,"eventEspDist",100,20000,100)
  addColorPicker(eventEspSection,"Colour",AR2_CFG.visuals,"eventEspColor")
- local removeSection = settingsTab:AddSection({Name="Anti-Cheat & Performance",Position="mid"})
+ local removeSection = settingsTab:AddSection({Name="Diagnostics",Position="mid"})
  do local _ok, _e = pcall(function()
- removeSection:AddToggle({Name="Frame Profiler",Default=false,
- Callback=function(v) AR2_profOn = v and true or false
- if v then AR2_profReset() end end})
- end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "prof: " .. tostring(_e) end end
- do local _ok, _e = pcall(function()
- removeSection:AddButton({Name="Telemetry Status",Callback=function()
+ removeSection:AddButton({Name="Re-check AC Silencer",Callback=function()
  local ok, why = AR2_silenceTelemetry()
  local out = ("telemetry quiet: %s\n%s\nFireConfig writes refused: %d "
  .. "(hash untouched)"):format(tostring(ok), tostring(why),
@@ -32128,9 +33019,9 @@ end
  end})
  end) if not _ok then AR2_uiErrors[#AR2_uiErrors+1] = "profr: " .. tostring(_e) end end
  AR2_uiMark("removeSection")
- addToggle(removeSection,"Remove Textures",AR2_CFG.misc,"removeTextures",function(v) AR2_toggleRemoveTextures(v) end)
- addToggle(removeSection,"Remove Leaves",AR2_CFG.misc,"removeLeaves",function(v) AR2_toggleRemoveLeaves(v) end)
- addToggle(removeSection,"Remove Bushes",AR2_CFG.misc,"removeBushes",function(v) AR2_toggleRemoveBushes(v) end)
+ addToggle(worldPerfSection,"Remove Textures",AR2_CFG.misc,"removeTextures",function(v) AR2_toggleRemoveTextures(v) end)
+ addToggle(worldPerfSection,"Remove Leaves",AR2_CFG.misc,"removeLeaves",function(v) AR2_toggleRemoveLeaves(v) end)
+ addToggle(worldPerfSection,"Remove Bushes",AR2_CFG.misc,"removeBushes",function(v) AR2_toggleRemoveBushes(v) end)
  local uiSection = settingsTab:AddSection({Name="Interface",Position="left"})
  AR2_uiMark("uiSection")
  uiSection:AddLabel("Theme")
@@ -32412,7 +33303,6 @@ end
  addKeybindEntry(combatKbSection,"Freecam","freecam")
  addKeybindEntry(combatKbSection,"Automate (Desync Kill)","autoKill")
  addKeybindEntry(combatKbSection,"Cam Fly","camFly")
- addKeybindEntry(combatKbSection,"Auto-Open Corpse On Death","corpseAuto")
  addKeybindEntry(combatKbSection,"Cam Drag (body to cam)","camDrag")
  addKeybindEntry(combatKbSection,"Vehicle Equip","vehicleEquip")
  addKeybindEntry(combatKbSection,"Hitmarker","hitmarker")
@@ -32441,6 +33331,8 @@ end
  local miscKbSection = keybindsTab:AddSection({Name="Misc",Position="right"})
  AR2_uiMark("miscKbSection")
  addKeybindEntry(miscKbSection,"Body Hide","bodyHide")
+ addKeybindEntry(miscKbSection,"Kill AC Detectors","killDetectors")
+ addKeybindEntry(miscKbSection,"Detector Guard","detGuard")
  addKeybindEntry(miscKbSection,"Fullbright","fullbright")
  addKeybindEntry(miscKbSection,"Zombie Circle","zombieCircle")
  addKeybindEntry(miscKbSection,"Jump Circle","jumpCircle")
@@ -32573,6 +33465,8 @@ AR2_toggleHitmarker(AR2_CFG.hitmarker.enabled)
 AR2_toggleCrosshair(AR2_CFG.crosshair.enabled)
 if AR2_CFG.tp.respawnTP then AR2_toggleRespawnTP(true) end
 if AR2_CFG.weapon.hbeOn then AR2_hbeSetEnabled(true) end
+if AR2_CFG.weapon.thickHead then AR2_thickHeadSetEnabled(true) end
+if AR2_CFG.weapon.backtrack then AR2_btSetEnabled(true) end
 pcall(AR2_ibRestoreFireConfig)
 task.spawn(function()
  for attempt = 1, 20 do
@@ -32617,6 +33511,7 @@ AR2_setInstantInteract(AR2_CFG.misc.instantInteract)
 AR2_setPlayerJesus(AR2_CFG.misc.playerJesus)
 AR2_setSelfBacktrack(AR2_CFG.misc.selfBacktrack.enabled)
 AR2_setJumpCircle(AR2_CFG.misc.jumpCircle.enabled)
+AR2_chinaHatSet(AR2_CFG.misc.chinaHat and AR2_CFG.misc.chinaHat.enabled)
 AR2_setRemoveShadows(AR2_CFG.misc.removeShadows)
 pcall(AR2_installThemeWatcher)
 AR2_setColorCorrection(AR2_CFG.visuals.colorCorrectionEnabled, AR2_CFG.visuals.ccSaturation, AR2_CFG.visuals.ccContrast, AR2_CFG.visuals.ccBrightness)
@@ -32678,6 +33573,8 @@ function AR2_unload()
  AR2_toggleRespawnTP(false)
  pcall(function() AR2_desyncSet(false) end)
  AR2_hbeSetEnabled(false)
+ pcall(AR2_thickHeadSetEnabled, false)
+ pcall(AR2_btSetEnabled, false)
  AR2_cosSetEnabled(false)
  AR2_cosRemoveAll()
  AR2_setAutoReload(false)
@@ -32685,6 +33582,7 @@ function AR2_unload()
  AR2_setPlayerJesus(false)
  AR2_setSelfBacktrack(false)
  AR2_setJumpCircle(false)
+ AR2_chinaHatSet(false)
  AR2_setRemoveShadows(false)
  AR2_setColorCorrection(false)
  AR2_toggleWorldwide(false)
