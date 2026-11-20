@@ -8856,27 +8856,23 @@ function AR2_acRun(gc, item, pick, pickPct)
  if sid == nil then AR2_acWhy = "silent: no item id" AR2_acBusy = false return end
  local vb
  pcall(function() local v = AR2_acVitals() if type(v)=="table" and v[pick] then vb = v[pick].cur end end)
- local prev
- pcall(function() prev = gc.EquippedItem end)
  local net = AR2_resolveNetTable()
- local pid
- pcall(function() if prev then pid = (AR2_weaponIdOf and AR2_weaponIdOf(prev)) or prev.Id end end)
- if net then
- if pid then pcall(net.Send, net, "Character Unequip Item", tostring(pid)) end
- pcall(net.Send, net, "Character Equip Item", tostring(sid))
- end
- task.wait(0.2)
- pcall(function() gc.UsingItem = true end)
- pcall(net.Send, net, "Register Consume", tostring(sid))
+ if not net then AR2_acWhy = "silent: no network" AR2_acBusy = false return end
+ -- Real consume is TWO packets (networkedItemUsage + animatedConsume):
+ --   1. "Register Consume" <id>  -- STARTS it; the consume animation then plays
+ --      for its full duration, and only if it was not cancelled does the client
+ --   2. "Inventory Use Item" <id> -- which is what actually APPLIES the restore.
+ -- The old silent path sent only (1), so the server started a consume that was
+ -- never completed and nothing happened. Send both, with the wait between.
+ pcall(function() item.Using = true end)
+ AR2_netSend("Register Consume", sid)
  AR2_acWhy = ("silent consume %s -- registered"):format(snm)
  task.wait(AR2_safeClamp(tonumber(AR2_CFG.misc.silentConsumeWait) or 3, 0.5, 8))
- pcall(function() gc.UsingItem = false end)
- pcall(function()
- if net then
- pcall(net.Send, net, "Character Unequip Item", tostring(sid))
- if pid then pcall(net.Send, net, "Character Equip Item", tostring(pid)) end
- end
- end)
+ pcall(function() if item and item.Using == true then item.Using = false end end)
+ local okUse = AR2_netSend("Inventory Use Item", sid)
+ AR2_acWhy = okUse and ("silent consume %s -- applied"):format(snm)
+  or ("silent: Inventory Use Item refused for %s"):format(snm)
+ task.wait(0.3)
  local va
  pcall(function() local v = AR2_acVitals() if type(v)=="table" and v[pick] then va = v[pick].cur end end)
  if type(va)=="number" and type(vb)=="number" and va > vb + 0.01 then
@@ -8886,7 +8882,7 @@ function AR2_acRun(gc, item, pick, pickPct)
  else
  AR2_acSkip[item]  = os.clock() + 20
  AR2_acBackoff     = os.clock() + 8
- AR2_acWhy = ("silent %s did nothing -- server may need the real consume; turn Silent off"):format(snm)
+ AR2_acWhy = ("silent %s did nothing -- stand still during the consume, or turn Silent off"):format(snm)
  end
  AR2_acBusy = false
  return
@@ -14928,24 +14924,41 @@ end
 AR2_textureUpdateConn = nil
 AR2_textureLastScan = 0
 AR2_savedTextures = {}
-function AR2_scanTextures()
- for _, obj in ipairs(AR2_Workspace:GetDescendants()) do
+function AR2_hideTexture(obj)
  if (obj:IsA("Texture") or obj:IsA("Decal")) and obj.Transparency < 1 and not AR2_savedTextures[obj] then
  AR2_savedTextures[obj] = obj.Transparency
  obj.Transparency = 1
  end
+end
+function AR2_scanTextures()
+ -- Chunked one-shot pass. The old version walked the entire ~100k-instance AR2
+ -- workspace in a single frame every 20s -- that was the ~1s frame spike. This
+ -- builds the descendant list once and yields every 2000 items so it spreads
+ -- across a few frames instead of stalling one. Guarded so only one runs.
+ if AR2_textureScanning then return end
+ AR2_textureScanning = true
+ task.spawn(function()
+ pcall(function()
+ local all = AR2_Workspace:GetDescendants()
+ for i = 1, #all do
+ if not (AR2_CFG.misc and AR2_CFG.misc.removeTextures) then break end
+ AR2_hideTexture(all[i])
+ if i % 2000 == 0 then task.wait() end
  end
+ end)
+ AR2_textureScanning = false
+ end)
 end
 function AR2_toggleRemoveTextures(enabled)
  AR2_CFG.misc.removeTextures = enabled
  if enabled then
  AR2_scanTextures()
- if not AR2_textureUpdateConn then
- AR2_textureUpdateConn = AR2_RunService.Heartbeat:Connect(AR2_sw(function()
- local now = os.clock()
- if now - AR2_textureLastScan >= 20 then
- AR2_textureLastScan = now
- AR2_scanTextures()
+ -- Event-driven upkeep instead of a 20s full re-walk: hide textures as they
+ -- stream in. One cheap IsA check per new instance, no recurring 100k scan.
+ if not AR2_textureAddConn then
+ AR2_textureAddConn = AR2_Workspace.DescendantAdded:Connect(AR2_sw(function(obj)
+ if AR2_CFG.misc and AR2_CFG.misc.removeTextures then
+ pcall(AR2_hideTexture, obj)
  end
  end))
  end
@@ -14953,6 +14966,10 @@ function AR2_toggleRemoveTextures(enabled)
  if AR2_textureUpdateConn then
  AR2_textureUpdateConn:Disconnect()
  AR2_textureUpdateConn = nil
+ end
+ if AR2_textureAddConn then
+ AR2_textureAddConn:Disconnect()
+ AR2_textureAddConn = nil
  end
  for obj, t in pairs(AR2_savedTextures) do
  if obj and obj.Parent then obj.Transparency = t end
@@ -29265,7 +29282,44 @@ function AR2_meleeBake()
  if AR2_CFG.weapon then AR2_CFG.weapon.meleeSpeed = false end
  AR2_meleeIvCache = {}    
 end
+function AR2_meleeAnimLength(animName, speedMod)
+ if type(animName) ~= "string" or animName == "" then return nil end
+ local len
+ pcall(function()
+ local assets = AR2_ReplicatedStorage and AR2_ReplicatedStorage:FindFirstChild("Assets")
+ local anims = assets and assets:FindFirstChild("Animations")
+ local a = anims and anims:FindFirstChild(animName)
+ if a then len = a:GetAttribute("Length") end
+ end)
+ if type(len) ~= "number" or len <= 0 then return nil end
+ local sm = tonumber(speedMod) or 1
+ if sm <= 0 then sm = 1 end
+ return len / sm
+end
 function AR2_meleeWeaponInterval()
+ if type(AR2_meleeCurDur) == "number" and AR2_meleeCurDur > 0.05 then return AR2_meleeCurDur end
+ -- Real swing cadence = the attack animation Length / PlaybackSpeedMod, read off
+ -- the equipped item live AttackConfig (the same source the game Melee initializer
+ -- and HoverText use). The old search looked for Duration/Cooldown/AttackTime etc.
+ -- which melee AttackConfig does NOT contain, so it fell through to 0.6s and the
+ -- drive loop re-swung mid-animation -> fanning. Gate to the longest combo step so
+ -- a swing always finishes before the next begins.
+ local inner = AR2_getEquippedInner()
+ local ac
+ pcall(function() ac = inner and (rawget(inner, "AttackConfig") or inner.AttackConfig) end)
+ if type(ac) == "table" and #ac > 0 then
+ local maxDur = 0
+ for _, step in ipairs(ac) do
+ if type(step) == "table" then
+ local d = AR2_meleeAnimLength(step.Animation, step.PlaybackSpeedMod)
+ if type(d) == "number" and d > maxDur then maxDur = d end
+ end
+ end
+ if maxDur > 0.01 then
+ AR2_meleeIvSource = "animation length"
+ return AR2_safeClamp(maxDur, 0.2, 2.0)
+ end
+ end
  local nm
  pcall(function() nm = AR2_getEquippedItemName and AR2_getEquippedItemName() end)
  if type(nm) ~= "string" or nm == "" then
@@ -29278,11 +29332,11 @@ function AR2_meleeWeaponInterval()
  local ID = AR2_getItemDataModule and AR2_getItemDataModule()
  local rec = ID and rawget(ID, nm)
  if type(rec) ~= "table" then return end
- local ac = rawget(rec, "AttackConfig") or rawget(rec, "MeleeConfig")
- if type(ac) ~= "table" then return end
+ local ac2 = rawget(rec, "AttackConfig") or rawget(rec, "MeleeConfig")
+ if type(ac2) ~= "table" then return end
  for _, k in ipairs({ "Durration", "Duration", "AttackTime", "SwingTime",
  "Cooldown", "ComboAfter", "AttackSpeed" }) do
- local v = rawget(ac, k)
+ local v = rawget(ac2, k)
  if type(v) == "number" and v > 0.01 then
  iv = (k == "AttackSpeed") and (1 / v) or v
  break
@@ -29363,25 +29417,35 @@ function AR2_packetEncode(name, body)
  return blob
 end
 AR2_meleeCombo = 0
+function AR2_meleeItem()
+ -- The item whose swing we forge: the equipped item ONLY if it is itself a
+ -- Melee, otherwise the first Melee in the bag. The old code used whatever was
+ -- equipped -- in silent mode that is still your GUN (the silent spoof never
+ -- sets gc.EquippedItem), so the forged swing carried WeaponId = gun.Id and the
+ -- server rejected a "melee swing" that named a firearm. This is the core hidden-
+ -- melee bug.
+ local it
+ pcall(function()
+ local cur = AR2_getEquippedInner()
+ local ty = cur and (rawget(cur, "Type") or cur.Type)
+ if cur ~= nil and ty == "Melee" then it = cur end
+ end)
+ if it == nil then
+ pcall(function()
+ local list = AR2_invItemsOfType({ Melee = true })
+ it = list and list[1]
+ end)
+ end
+ return it
+end
 function AR2_meleeWeaponId()
  if AR2_meleeKnifeId ~= nil then return AR2_meleeKnifeId end
  local id
- pcall(function()
- local cur = AR2_getEquippedInner()
- if cur ~= nil then
- local cid = rawget(cur, "Id")
- if cid == nil then cid = cur.Id end
- if cid ~= nil then id = tostring(cid) end
- end
- end)
- if id == nil then
- pcall(function()
- local list = AR2_invItemsOfType({ Melee = true })
- local it = list and list[1]
+ local it = AR2_meleeItem()
  if it ~= nil then
+ pcall(function()
  local cid = rawget(it, "Id"); if cid == nil then cid = it.Id end
  if cid ~= nil then id = tostring(cid) end
- end
  end)
  end
  return id
@@ -29455,8 +29519,36 @@ function AR2_meleeSendPackets(best, handPos, aim, reach)
  return
  end
  local st = AR2_Workspace:GetServerTimeNow()
- AR2_meleeCombo = (AR2_meleeCombo % 3) + 1
- local inner = AR2_getEquippedInner()
+ -- Mirror the game own combo state machine (Melee OnUse): advance ComboIndex
+ -- only when this swing lands inside [ComboAfter, ComboLimit], otherwise reset to
+ -- 1 -- exactly what the server does -- so our sent ComboIndex never diverges
+ -- from the server. ComboAfter/Limit are derived from the CURRENT attack
+ -- animation length, and that same length paces the drive loop.
+ local mitem = AR2_meleeItem()
+ local ac
+ pcall(function() ac = mitem and (rawget(mitem, "AttackConfig") or mitem.AttackConfig) end)
+ local alen = (type(ac) == "table" and #ac >= 1) and #ac or 1
+ local now = os.clock()
+ if AR2_meleeComboAfter and AR2_meleeComboAfter <= now and now <= AR2_meleeComboLimit then
+ AR2_meleeComboIdx = (AR2_meleeComboIdx or 1) + 1
+ if AR2_meleeComboIdx > alen then AR2_meleeComboIdx = 1 end
+ elseif (AR2_meleeComboAfter or -1) < now then
+ AR2_meleeComboIdx = 1
+ end
+ if type(AR2_meleeComboIdx) ~= "number" or AR2_meleeComboIdx < 1 then AR2_meleeComboIdx = 1 end
+ local dur = AR2_meleeNaturalGap or 0.6
+ pcall(function()
+ local step = ac and ac[AR2_meleeComboIdx]
+ if type(step) == "table" then
+ local d = AR2_meleeAnimLength(step.Animation, step.PlaybackSpeedMod)
+ if type(d) == "number" and d > 0.01 then dur = d end
+ end
+ end)
+ AR2_meleeComboAfter = now + dur - 1
+ AR2_meleeComboLimit = now + dur + 0.4
+ AR2_meleeCurDur = AR2_safeClamp(dur, 0.2, 2.0)
+ AR2_meleeCombo = AR2_meleeComboIdx
+ local inner = (type(mitem) == "table") and mitem or AR2_getEquippedInner()
  if type(inner) == "table" then
  pcall(function() inner.AttackId = st end)
  pcall(function() inner.ComboIndex = AR2_meleeCombo end)
@@ -29536,10 +29628,10 @@ function AR2_meleeStrikeOnce()
  local acts = pchar and rawget(pchar, "Actions")
  if acts == nil and pchar then pcall(function() acts = pchar.Actions end) end
  if AR2_CFG.melee.silent ~= true and eqTy == "Melee" and type(acts) == "table" and type(acts.UseItem) == "function" then
- pcall(function()
- local flat = Vector3.new(hp.X - rp.Position.X, 0, hp.Z - rp.Position.Z)
- if flat.Magnitude > 0.05 then rp.CFrame = CFrame.new(rp.Position, rp.Position + flat.Unit) end
- end)
+ -- No hard rp.CFrame snap here: it whipped the body to face each re-picked
+ -- target every strike (the "fanning"). LookDirectionSpring:SetGoal above turns
+ -- the body smoothly AND is what the game reports as our look, so the real hit
+ -- detection still sweeps the weapon hitbox onto the target.
  pcall(function() acts.UseItem(pchar, "Begin") end)
  task.delay(0.02, function() pcall(function() acts.UseItem(pchar, "End") end) end)
  if AR2_CFG.melee.hideSwing ~= false then
@@ -29882,10 +29974,9 @@ function AR2_meleeDriveSet(on)
  if m.strike or m.meleeAura then
  pcall(AR2_meleeStrikeOnce)
  AR2_meleeDriveN = (AR2_meleeDriveN or 0) + 1
- if AR2_meleeDriveN >= (tonumber(m.comboMax) or 3) then
- AR2_meleeDriveN = 0
- nextAt = math.max(nextAt, now + AR2_safeClamp(tonumber(m.comboReset) or 0.5, 0.1, 2))
- end
+ -- comboMax forced-pause removed: it pushed the next swing ~0.5s past the
+ -- server ComboLimit and broke the combo chain. The per-attack interval
+ -- (AR2_meleeCurDur) plus the mirrored combo window now pace the swings.
  end
  if m.shoveAura then pcall(AR2_meleeShoveAura) end
  pcall(AR2_meleeReleaseEquip)
