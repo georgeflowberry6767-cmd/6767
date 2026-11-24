@@ -78,7 +78,7 @@ function YVL_GUARD.run(coreFns)
  YVL_GUARD.passed = ok
  return ok
 end
---yea yea call me vibe coder skid whatever just steal my code puzzy==
+--yea yea call me vibe coder skid whatever just steal my code puzzy--
 AR2_dmgWatched = 0
 if getgenv then
  local g = getgenv()
